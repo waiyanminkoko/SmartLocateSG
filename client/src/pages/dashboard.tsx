@@ -23,7 +23,7 @@ export default function Dashboard() {
     <AppShell
       title="Dashboard"
       right={
-        <Link href="/profiles">
+        <Link href="/profiles/new">
           <Button className="gap-2" data-testid="button-create-profile">
             <Plus className="h-4 w-4" aria-hidden="true" />
             Create Business Profile

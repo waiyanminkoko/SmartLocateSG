@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { Link } from "wouter";
 import { Plus, Trash2 } from "lucide-react";
 
 import { AppShell } from "@/components/app-shell";
@@ -29,10 +30,12 @@ export default function Profiles() {
     <AppShell
       title="Business Profiles"
       right={
-        <Button className="gap-2" onClick={() => toast({ title: "Create Profile (prototype)", description: "Wizard UI can be added next." })} data-testid="button-create-profile-top">
-          <Plus className="h-4 w-4" aria-hidden="true" />
-          Create Profile
-        </Button>
+        <Link href="/profiles/new">
+          <Button className="gap-2" data-testid="button-create-profile-top">
+            <Plus className="h-4 w-4" aria-hidden="true" />
+            Create Profile
+          </Button>
+        </Link>
       }
     >
       <div className="space-y-6">

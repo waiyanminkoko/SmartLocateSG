@@ -12,6 +12,7 @@ import Login from "@/pages/login";
 import Register from "@/pages/register";
 import Dashboard from "@/pages/dashboard";
 import Profiles from "@/pages/profiles";
+import ProfileWizard from "@/pages/profiles-wizard";
 import MapPage from "@/pages/map";
 import Portfolio from "@/pages/portfolio";
 import Compare from "@/pages/compare";
@@ -24,6 +25,7 @@ function Router() {
       <Route path="/register" component={Register} />
       <Route path="/dashboard" component={Dashboard} />
       <Route path="/profiles" component={Profiles} />
+      <Route path="/profiles/new" component={ProfileWizard} />
       <Route path="/map" component={MapPage} />
       <Route path="/portfolio" component={Portfolio} />
       <Route path="/compare" component={Compare} />
