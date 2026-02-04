@@ -1,0 +1,147 @@
+UI Mockups
+By: Jung Kit
+
+Reference (from ui_mockup_plan.md)
+UI Mockup Plan — SmartLocate SG (Web App)
+Purpose: Provide a detailed, use-case-driven UI mockup plan for teammates to create a coherent web UI prototype.
+ 
+1. Prototype Goals (What the UI mockups should prove)
+Users can create/select a Business Profile and understand how it affects scoring.
+Users can explore the map, switch overlays/layers, and score a POI quickly.
+Users can save candidate sites, add notes, and compare up to 3 sites.
+Users can apply scenario presets / custom weights and see scores update.
+Users can see explanations that justify the score in plain language.
+ 
+2. Primary Navigation (Proposed IA)
+Global Layout
+Top App Bar: App name, profile selector, scenario selector, user menu.
+Left Navigation (optional): Dashboard, Map, Portfolio, Compare, Admin (if admin).
+Main Content Area: Screen-specific content.
+Primary Routes
+/login (UC-03)
+/register (UC-01/02)
+/dashboard (overview + quick actions)
+/profiles (UC-07)
+/map (UC-10/11/12/13/14/15/22/23)
+/portfolio (UC-17/18/19)
+/compare (UC-20/21)
+/admin (UC-25..UC-30) (optional for prototype)
+ 
+3. Screen-by-Screen Mockup Specifications
+Each screen lists: Goal, Primary actor, Key components, Key states, and Use cases supported.
+Screen S01 — Landing (Optional)
+Goal: Explain value prop and direct users to log in/register.
+Primary actor: A01/A02/A03
+Key components: hero message, “Get Started”, “Log In”, dataset attribution footer.
+Key states: none.
+Use cases: UC-01, UC-03
+Screen S02 — Register
+Goal: Create account with minimal friction.
+Primary actor: A01/A02/A03
+Key components: - Email field - Password + confirm password - User type radio buttons (SME / MNC / Agent) - Terms of Service checkbox - Submit button
+Microcopy: password rules, privacy note.
+Key states: validation errors, success (“check email”), resend verification.
+Use cases: UC-01, UC-02
+Screen S03 — Log In
+Goal: Authenticate quickly and route to dashboard.
+Primary actor: A01/A02/A03
+Key components: email, password, “Log In”, “Forgot password”.
+Key states: wrong credentials, unverified account notice.
+Use cases: UC-03, UC-05
+Screen S04 — Dashboard (Home)
+Goal: Provide quick starting points.
+Primary actor: A01/A02/A03
+Key components: - “Create Business Profile” CTA - Recent profiles list - Recent candidate sites - “Open Map” CTA - “Compare Sites” CTA (disabled if < 2 saved sites)
+Key states: empty state (no profiles yet).
+Use cases: UC-06, UC-07, UC-10, UC-20
+Screen S05 — Business Profiles List
+Goal: Manage profiles (view/edit/delete) and set active profile.
+Primary actor: A01/A02/A03
+Key components: - Profile cards/table: name, sector, price band, last updated - Actions: “Set Active”, “Edit”, “Delete” - “Create New Profile” button
+Key states: - Empty list - Delete confirm modal
+Use cases: UC-06, UC-07, UC-08, UC-09
+Screen S06 — Business Profile Wizard (Multi-step)
+Goal: Capture a complete profile in 3–4 steps.
+Primary actor: A01/A02/A03
+Step Layout: left stepper + right form.
+Steps (suggested): 1. Basics: profile name, sector (Professional services, Education & training, Health & wellness, Beauty & personal care, Entertainment & leisure, Supermarket/Retail or Showrooms), price band ($1-$20, $21-$50, $51-$100, $100-$500, $500-$1000, $1000+) 2. Target Customers: age groups (18-24, 25-34, 35-44, 45-54, 55-64, 65+), income bands (Low <S$3,000, Lower-Middle S$3,000-S$5,000, Middle S$5,000-S$8,000, Upper-Middle S$8,000-S$12,000, High >S$12,000) 3. Operating Model: reliance type (Walk-in focused, Delivery focused, Mixed) 4. Review & Save: summary + save
+Key components: - Inline validations ("select at least one age group", "select at least one income band") - Tooltips explaining why each input matters
+Key states: back/next, save success.
+Use cases: UC-06
+Screen S07 — Map Exploration (Core Screen)
+Goal: Explore Singapore, view overlays, drop pins, see scores.
+Primary actor: A01/A02/A03
+Layout suggestion: - Left: Control panel (profile/scenario/layers/search) - Center: Map canvas - Right (or bottom drawer): Score Breakdown + Explanation
+Components
+Top/Left Controls: - Active Business Profile dropdown (required) - Scenario preset dropdown (Normal/Holiday Peak, Pandemic/Delivery, Cost-Saving) - Weight slider button (opens modal/drawer) - Overlay selector (Composite, Demographics, Accessibility, Vacancy) - Layer toggles: MRT stations, MRT exits (zoom-gated), Bus stops - Search bar (address/postal)
+Map Interactions: - Click to drop POI pin - Click planning area polygon to view area details - Hover tooltip (area name + key score)
+Score Breakdown Panel: - Composite score (big) - Dimension bars/cards (Demographic Match, Accessibility, Rental Pressure, Competition Density) - "Explain Score" button (triggers AI Agent explanation) - “Save to Portfolio” button
+Key states
+No active profile selected: prompt user to create/select profile.
+Loading state: skeleton on breakdown, spinner on map overlay.
+Data stale notice: banner (“Using cached data from ...”) when applicable.
+API partial failure: show scoring computed with missing dimension(s) + explanation.
+Use cases: UC-10, UC-11, UC-12, UC-13, UC-14, UC-15, UC-16, UC-22
+Screen S08 — Weight Adjustment (Modal/Drawer)
+Goal: Let users customize score weights safely.
+Primary actor: A01/A02/A03
+Key components: - Sliders for each dimension (Demographic Match, Accessibility, Rental Pressure, Competition Density) - Live total (must be 100%) - Buttons: Apply, Cancel, Reset to Default
+Behavior decision for team: strict enforcement vs auto-normalize.
+Use cases: UC-23, UC-24
+Screen S09 — Planning Area Details (Panel)
+Goal: Show area-level demographics + scores when user clicks on district/region info icon.
+Primary actor: A01/A02/A03
+Key components: - Area name (district/region) + boundary highlight - Population demographics chart (age distribution, income indicators) - Accessibility summary (MRT station count, bus stop density) - Vacancy/rental proxy summary - Area-level composite score - "Close" button
+Use cases: UC-14
+Screen S10 — Portfolio (Candidate Sites)
+Goal: Manage saved candidate sites.
+Primary actor: A01/A02/A03
+Key components: - Filter by business profile - Table/cards: site name, address label, composite score, saved date - Actions per row: View on map, Edit notes, Delete - Multi-select for comparison
+Key states: empty portfolio; delete confirmation.
+Use cases: UC-17, UC-18, UC-19, UC-20
+Screen S11 — Candidate Site Details (Optional)
+Goal: Provide a single-site view for notes and score details.
+Primary actor: A01/A02/A03
+Key components: map mini-view, score breakdown (all four dimensions), notes editor, AI-generated score explanations for each dimension (demographic, accessibility, rental, competition).
+Use cases: UC-18, UC-15
+Screen S12 — Compare Sites Dashboard
+Goal: Compare 2–3 sites side-by-side.
+Primary actor: A01/A02/A03
+Key components: - Selected sites chips (max 3) - Comparison table (composite + all four dimensions: demographic match, accessibility, rental pressure, competition density) - Chart (radar or grouped bars) visualizing dimension scores - "Export PDF" button (generates downloadable report per FR-SCD-004)
+Key states: - Less than 2 selected sites → show prompt - More than 3 attempted → show validation message
+Use cases: UC-20, UC-21
+Screen S13 — Admin: Data Status (Optional for prototype)
+Goal: Provide transparency into data freshness and refresh results.
+Primary actor: A04
+Key components: - Data sources table: OneMap/SingStat, LTA, URA, Google/data.gov - Last updated timestamp, status, error summary - “Run Refresh” button
+Use cases: UC-25, UC-26
+ 
+4. UI Components Inventory (Reusable)
+Profile selector (dropdown)
+Scenario selector (dropdown)
+Weight sliders component
+Layer toggle list
+Overlay legend component
+Score breakdown card
+Explanation bullet list
+Candidate site card/table row
+Confirmation dialogs (delete profile/site)
+Toast notifications (save success, export success)
+ 
+5. HCI / UX Notes (What to emphasize in mockups)
+Use progressive disclosure: don’t show weight sliders until the user requests.
+Provide strong empty states: “Create your first business profile” with CTA.
+Reduce cognitive load: default scenario + overlay; clear legends with all four dimensions.
+Ensure feedback loops: loading skeletons, toasts, and visible "active profile/scenario".
+Keep map controls grouped and consistent (layer toggles together).
+AI Explanations: Make score explanations easily accessible and understandable without technical jargon.
+User Feedback: Allow users to provide feedback on each explanation/insight to improve clarity.
+ 
+6. Traceability (UI → Use Cases → Requirements)
+S06 Business Profile Wizard → UC-06 → FR-BPM-001..FR-BPM-006
+S07 Map Exploration → UC-10/11/12/13/15/16/22 → FR-MAP-001..FR-MAP-011, FR-SSE-001..FR-SSE-006, FR-SEI-001..FR-SEI-005
+S10 Portfolio → UC-17/18/19 → FR-CSP-001..FR-CSP-005
+S12 Compare → UC-20/21 → FR-SCD-001..FR-SCD-004
+S08 Weights → UC-23/24 → FR-SCP-001..FR-SCP-006
+ 
+
