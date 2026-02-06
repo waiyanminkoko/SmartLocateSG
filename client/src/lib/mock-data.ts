@@ -4,6 +4,7 @@ export type BusinessProfile = {
   sector: string;
   priceBand: string;
   ageGroups: string[];
+  incomeBands: string[];
   operatingModel: string;
   updatedAt: string;
   active?: boolean;
@@ -30,6 +31,7 @@ export const mockProfiles: BusinessProfile[] = [
     sector: "Supermarket/Retail",
     priceBand: "$21–$50",
     ageGroups: ["25–34", "35–44", "55–64"],
+    incomeBands: ["Lower-Middle", "Middle"],
     operatingModel: "Mixed",
     updatedAt: "Feb 4, 2026",
     active: true,
@@ -40,6 +42,7 @@ export const mockProfiles: BusinessProfile[] = [
     sector: "Health & wellness",
     priceBand: "$51–$100",
     ageGroups: ["18–24", "25–34", "35–44"],
+    incomeBands: ["Middle", "Upper-Middle"],
     operatingModel: "Walk-in",
     updatedAt: "Feb 1, 2026",
   },

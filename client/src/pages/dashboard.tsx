@@ -126,6 +126,42 @@ export default function Dashboard() {
             </div>
           </Card>
         </div>
+
+        <Card className="border bg-card p-5 shadow-sm">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="text-sm font-semibold" data-testid="text-recent-sites-title">Recent candidate sites</div>
+              <div className="mt-1 text-xs text-muted-foreground" data-testid="text-recent-sites-sub">
+                Latest saved locations across profiles.
+              </div>
+            </div>
+            <Link href="/portfolio">
+              <Button variant="secondary" size="sm" data-testid="button-view-portfolio">View all</Button>
+            </Link>
+          </div>
+
+          {sites.length === 0 ? (
+            <div className="mt-4 rounded-xl border bg-muted/30 p-4 text-sm text-muted-foreground" data-testid="empty-sites">
+              Save a site from the map to build your portfolio.
+            </div>
+          ) : (
+            <div className="mt-4 space-y-2">
+              {sites.slice(0, 3).map((s) => (
+                <div
+                  key={s.id}
+                  className="flex items-center justify-between rounded-xl border bg-card px-3 py-2"
+                  data-testid={`row-site-${s.id}`}
+                >
+                  <div>
+                    <div className="text-sm font-medium" data-testid={`text-site-name-${s.id}`}>{s.name}</div>
+                    <div className="text-xs text-muted-foreground" data-testid={`text-site-address-${s.id}`}>{s.address}</div>
+                  </div>
+                  <div className="text-xs text-muted-foreground" data-testid={`text-site-saved-${s.id}`}>{s.savedAt}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
       </div>
     </AppShell>
   );

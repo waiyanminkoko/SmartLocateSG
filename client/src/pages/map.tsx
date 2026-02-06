@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Layers,
   MapPin,
@@ -6,11 +6,16 @@ import {
   SlidersHorizontal,
   Sparkles,
   SquarePlus,
+  ThumbsDown,
+  ThumbsUp,
+  Info,
 } from "lucide-react";
+import L from "leaflet";
 
 import { AppShell } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
@@ -35,6 +40,28 @@ const presets: Record<string, Weights> = {
   "Cost-Saving": { demographic: 20, accessibility: 25, rental: 35, competition: 20 },
 };
 
+const areaDetails = {
+  name: "Tiong Bahru",
+  district: "Central Region",
+  composite: 82,
+  demographics: {
+    topAges: "25–34 (18%), 35–44 (16%)",
+    medianIncome: "S$5,800 / month",
+    householdSize: "2.7 average",
+  },
+  accessibility: {
+    mrt: "2 MRT stations within 1 km",
+    exits: "6 MRT exits within 500 m",
+    busStops: "12 bus stops within 500 m",
+  },
+  commercial: {
+    vacancy: "Low (6%)",
+    rentalIndex: "Mid-high",
+    competition: "14 similar outlets within 1 km",
+  },
+  updatedAt: "Feb 4, 2026",
+};
+
 function clamp100(v: number) {
   return Math.max(0, Math.min(100, v));
 }
@@ -53,6 +80,9 @@ function normalize(w: Weights): Weights {
 
 export default function MapPage() {
   const { toast } = useToast();
+  const mapContainerRef = useRef<HTMLDivElement | null>(null);
+  const mapRef = useRef<L.Map | null>(null);
+  const markerRef = useRef<L.CircleMarker | null>(null);
 
   const profiles = mockProfiles;
   const [activeProfileId, setActiveProfileId] = useState<string>(profiles.find((p) => p.active)?.id ?? "");
@@ -66,6 +96,29 @@ export default function MapPage() {
     [profiles, activeProfileId],
   );
 
+  const explanationItems = [
+    {
+      label: "Demographic match",
+      score: 76,
+      detail: "Strong overlap with target age groups (25–44) and mid-income households.",
+    },
+    {
+      label: "Accessibility",
+      score: 90,
+      detail: "Two MRT stations and 12 bus stops within a short walk boost footfall access.",
+    },
+    {
+      label: "Rental pressure",
+      score: 63,
+      detail: "Vacancy is low, suggesting higher rent pressure but stable demand.",
+    },
+    {
+      label: "Competition density",
+      score: 71,
+      detail: "Competition is moderate with 14 similar outlets nearby.",
+    },
+  ];
+
   const composite = useMemo(() => {
     const base = { demographic: 76, accessibility: 90, rental: 63, competition: 71 };
     const w = normalize(weights);
@@ -77,6 +130,55 @@ export default function MapPage() {
       100;
     return Math.round(score);
   }, [weights]);
+
+  const setPin = (latlng: L.LatLngExpression) => {
+    if (!mapRef.current) return;
+    if (markerRef.current) {
+      markerRef.current.remove();
+    }
+    markerRef.current = L.circleMarker(latlng, {
+      radius: 7,
+      color: "#2563eb",
+      weight: 2,
+      fillColor: "#3b82f6",
+      fillOpacity: 0.9,
+    }).addTo(mapRef.current);
+  };
+
+  useEffect(() => {
+    if (!mapContainerRef.current || mapRef.current) return;
+
+    const map = L.map(mapContainerRef.current, {
+      center: [1.3521, 103.8198],
+      zoom: 12,
+      minZoom: 11,
+      maxZoom: 19,
+      zoomControl: true,
+    });
+
+    L.tileLayer("https://www.onemap.gov.sg/maps/tiles/Default/{z}/{x}/{y}.png", {
+      attribution: "© OneMap, Singapore Land Authority",
+    }).addTo(map);
+
+    L.control.scale({ metric: true, imperial: false }).addTo(map);
+
+    const handleClick = (event: L.LeafletMouseEvent) => {
+      setPin(event.latlng);
+      toast({
+        title: "Pin dropped (prototype)",
+        description: "Scoring updated for the selected location.",
+      });
+    };
+
+    map.on("click", handleClick);
+    mapRef.current = map;
+
+    return () => {
+      map.off("click", handleClick);
+      map.remove();
+      mapRef.current = null;
+    };
+  }, [toast]);
 
   return (
     <AppShell title="Map">
@@ -216,6 +318,36 @@ export default function MapPage() {
                 </Select>
               </div>
 
+              <div className="rounded-xl border bg-muted/30 p-3 text-xs" data-testid="panel-overlay-legend">
+                <div className="text-xs font-semibold text-muted-foreground">Overlay legend</div>
+                <div className="mt-2 grid gap-1 text-muted-foreground">
+                  <div className="flex items-center justify-between">
+                    <span>Composite score</span>
+                    <span className="inline-flex items-center gap-1">
+                      <span className="h-2 w-2 rounded-full bg-primary" /> High is better
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span>Demographics</span>
+                    <span className="inline-flex items-center gap-1">
+                      <span className="h-2 w-2 rounded-full bg-emerald-500" /> Match score
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span>Accessibility</span>
+                    <span className="inline-flex items-center gap-1">
+                      <span className="h-2 w-2 rounded-full bg-sky-500" /> Transit access
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span>Vacancy / Rental</span>
+                    <span className="inline-flex items-center gap-1">
+                      <span className="h-2 w-2 rounded-full bg-amber-500" /> Pressure indicator
+                    </span>
+                  </div>
+                </div>
+              </div>
+
               <div className="rounded-xl border bg-card p-3" data-testid="group-layer-toggles">
                 <div className="text-xs font-medium text-muted-foreground">Layers</div>
                 <div className="mt-2 grid gap-2">
@@ -274,31 +406,126 @@ export default function MapPage() {
         <Card className="border bg-card p-0 shadow-sm" data-testid="map-canvas">
           <div className="flex items-center justify-between border-b px-4 py-3">
             <div className="text-sm font-semibold" data-testid="text-map-title">Singapore map</div>
-            <Button
-              variant="secondary"
-              size="sm"
-              className="gap-2"
-              onClick={() => toast({ title: "Pin dropped (prototype)", description: "Scoring updated." })}
-              data-testid="button-drop-pin"
-            >
-              <MapPin className="h-4 w-4" aria-hidden="true" />
-              Drop pin
-            </Button>
+            <div className="flex items-center gap-2">
+              <Sheet>
+                <SheetTrigger asChild>
+                  <Button variant="ghost" size="sm" className="gap-2" data-testid="button-area-details">
+                    <Info className="h-4 w-4" aria-hidden="true" />
+                    Area details
+                  </Button>
+                </SheetTrigger>
+                <SheetContent side="right" className="w-full sm:max-w-lg">
+                  <SheetHeader>
+                    <SheetTitle data-testid="text-area-title">Planning Area Details</SheetTitle>
+                  </SheetHeader>
+
+                  <div className="mt-5 space-y-5 text-sm">
+                    <div className="rounded-xl border bg-card p-4">
+                      <div className="text-xs text-muted-foreground">Planning area</div>
+                      <div className="mt-1 text-lg font-semibold">{areaDetails.name}</div>
+                      <div className="text-xs text-muted-foreground">{areaDetails.district}</div>
+                      <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
+                        <span>Composite score</span>
+                        <span className="text-base font-semibold text-foreground">{areaDetails.composite}</span>
+                      </div>
+                    </div>
+
+                    <div className="grid gap-3">
+                      <div className="rounded-xl border bg-card p-4">
+                        <div className="text-xs font-semibold text-muted-foreground">Demographics</div>
+                        <div className="mt-2 space-y-1">
+                          <div className="flex items-center justify-between">
+                            <span className="text-muted-foreground">Top age groups</span>
+                            <span>{areaDetails.demographics.topAges}</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-muted-foreground">Median income</span>
+                            <span>{areaDetails.demographics.medianIncome}</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-muted-foreground">Household size</span>
+                            <span>{areaDetails.demographics.householdSize}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="rounded-xl border bg-card p-4">
+                        <div className="text-xs font-semibold text-muted-foreground">Accessibility</div>
+                        <div className="mt-2 space-y-1">
+                          <div className="flex items-center justify-between">
+                            <span className="text-muted-foreground">MRT access</span>
+                            <span>{areaDetails.accessibility.mrt}</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-muted-foreground">MRT exits</span>
+                            <span>{areaDetails.accessibility.exits}</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-muted-foreground">Bus stops</span>
+                            <span>{areaDetails.accessibility.busStops}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="rounded-xl border bg-card p-4">
+                        <div className="text-xs font-semibold text-muted-foreground">Commercial pressure</div>
+                        <div className="mt-2 space-y-1">
+                          <div className="flex items-center justify-between">
+                            <span className="text-muted-foreground">Vacancy</span>
+                            <span>{areaDetails.commercial.vacancy}</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-muted-foreground">Rental index</span>
+                            <span>{areaDetails.commercial.rentalIndex}</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-muted-foreground">Competition</span>
+                            <span>{areaDetails.commercial.competition}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl border bg-muted/30 p-3 text-xs text-muted-foreground">
+                      Updated: {areaDetails.updatedAt} • Data sources: OneMap, SingStat, LTA, URA.
+                    </div>
+                  </div>
+                </SheetContent>
+              </Sheet>
+              <Button
+                variant="secondary"
+                size="sm"
+                className="gap-2"
+                onClick={() => {
+                  if (!mapRef.current) {
+                    toast({
+                      title: "Map loading",
+                      description: "Please wait for the map to initialize.",
+                      variant: "destructive",
+                    });
+                    return;
+                  }
+                  const center = mapRef.current.getCenter();
+                  setPin(center);
+                  toast({
+                    title: "Pin dropped (prototype)",
+                    description: "Scoring updated for the selected location.",
+                  });
+                }}
+                data-testid="button-drop-pin"
+              >
+                <MapPin className="h-4 w-4" aria-hidden="true" />
+                Drop pin
+              </Button>
+            </div>
           </div>
-          <div className="grid place-items-center px-4 py-16">
-            <div className="max-w-md text-center">
-              <div className="mx-auto grid size-14 place-items-center rounded-2xl border bg-muted/30">
-                <MapPin className="h-6 w-6" aria-hidden="true" />
-              </div>
-              <div className="mt-4 text-sm font-semibold" data-testid="text-map-placeholder-title">
-                Map canvas (mock)
-              </div>
-              <div className="mt-1 text-sm text-muted-foreground" data-testid="text-map-placeholder-sub">
-                In a full app, this is where OneMap tiles + overlays would render.
-              </div>
-              <div className="mt-4 inline-flex items-center gap-2 rounded-full border bg-card px-3 py-1 text-xs text-muted-foreground" data-testid="text-overlay-pill">
-                Overlay: {overlay}
-              </div>
+          <div className="relative">
+            <div ref={mapContainerRef} className="h-[360px] w-full sm:h-[520px]" data-testid="map-container" />
+            <div className="pointer-events-none absolute bottom-3 left-3 inline-flex items-center gap-2 rounded-full border bg-card/90 px-3 py-1 text-xs text-muted-foreground shadow-sm">
+              Overlay: {overlay}
+            </div>
+            <div className="pointer-events-none absolute bottom-3 right-3 rounded-md border bg-card/90 px-2 py-1 text-[11px] text-muted-foreground shadow-sm">
+              OneMap © SLA
             </div>
           </div>
         </Card>
@@ -313,6 +540,10 @@ export default function MapPage() {
                 </div>
               </div>
               <div className="text-2xl font-semibold tracking-tight" data-testid="text-composite-score">{composite}</div>
+            </div>
+
+            <div className="rounded-xl border bg-muted/30 p-3 text-xs text-muted-foreground" data-testid="text-data-freshness">
+              Using cached data updated on Feb 4, 2026. Refresh in Admin to pull the latest datasets.
             </div>
 
             <div className="grid gap-3">
@@ -333,23 +564,71 @@ export default function MapPage() {
             </div>
 
             <div className="grid gap-2">
-              <Button
-                variant="secondary"
-                className="justify-between"
-                onClick={() =>
-                  toast({
-                    title: "Explain score (prototype)",
-                    description:
-                      "Composite is high due to strong transit access and a solid demographic match. Rental pressure is moderate.",
-                  })
-                }
-                data-testid="button-explain-score"
-              >
-                <span className="inline-flex items-center gap-2">
-                  <Sparkles className="h-4 w-4" aria-hidden="true" /> Explain score
-                </span>
-                <span className="text-muted-foreground">↵</span>
-              </Button>
+              <Dialog>
+                <DialogTrigger asChild>
+                  <Button
+                    variant="secondary"
+                    className="justify-between"
+                    data-testid="button-explain-score"
+                  >
+                    <span className="inline-flex items-center gap-2">
+                      <Sparkles className="h-4 w-4" aria-hidden="true" /> Explain score
+                    </span>
+                    <span className="text-muted-foreground">↵</span>
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-2xl">
+                  <DialogHeader>
+                    <DialogTitle>Score explanation</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4 text-sm">
+                    <div className="rounded-xl border bg-muted/30 p-4">
+                      Composite score is strong due to high transit accessibility and solid demographic alignment.
+                      Rental pressure is moderate, and competition remains manageable.
+                    </div>
+
+                    <div className="grid gap-3">
+                      {explanationItems.map((item) => (
+                        <div key={item.label} className="rounded-xl border bg-card p-4">
+                          <div className="flex items-center justify-between">
+                            <div className="font-semibold">{item.label}</div>
+                            <div className="text-lg font-semibold">{item.score}</div>
+                          </div>
+                          <div className="mt-2 text-xs text-muted-foreground">{item.detail}</div>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="text-xs text-muted-foreground">
+                        Was this explanation helpful?
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="gap-2"
+                          onClick={() => toast({ title: "Thanks!", description: "Feedback saved." })}
+                          data-testid="button-feedback-up"
+                        >
+                          <ThumbsUp className="h-4 w-4" aria-hidden="true" />
+                          Helpful
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="gap-2"
+                          onClick={() => toast({ title: "Noted", description: "We will refine the explanation." })}
+                          data-testid="button-feedback-down"
+                        >
+                          <ThumbsDown className="h-4 w-4" aria-hidden="true" />
+                          Not really
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </DialogContent>
+              </Dialog>
               <Button
                 className="justify-between"
                 onClick={() => toast({ title: "Saved to portfolio (prototype)", description: "Site added." })}

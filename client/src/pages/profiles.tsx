@@ -94,8 +94,12 @@ export default function Profiles() {
                     <span className="text-muted-foreground">Ages</span>
                     <span className="font-medium" data-testid={`text-ages-${p.id}`}>{p.ageGroups.join(", ")}</span>
                   </div>
+                  <div className="flex items-center justify-between" data-testid={`row-income-${p.id}`}>
+                    <span className="text-muted-foreground">Income</span>
+                    <span className="font-medium" data-testid={`text-income-${p.id}`}>{p.incomeBands.join(", ")}</span>
+                  </div>
                   <div className="flex items-center justify-between" data-testid={`row-operating-${p.id}`}>
-                    <span className="text-muted-foreground">Operating</span>
+                    <span className="text-muted-foreground">Reliance</span>
                     <span className="font-medium" data-testid={`text-operating-${p.id}`}>{p.operatingModel}</span>
                   </div>
                   <div className="flex items-center justify-between" data-testid={`row-updated-${p.id}`}>

@@ -58,7 +58,33 @@ export default function ProfileWizard() {
     },
   });
 
-  const next = () => setStep((s) => Math.min(s + 1, 3));
+  const next = () => {
+    if (step === 1) {
+      const { name, sector, priceBand } = form.getValues();
+      if (!name || !sector || !priceBand) {
+        toast({
+          title: "Complete the basics",
+          description: "Add a name, sector, and price band to continue.",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
+    if (step === 2) {
+      const { ageGroups, incomeBands } = form.getValues();
+      if (ageGroups.length === 0 || incomeBands.length === 0) {
+        toast({
+          title: "Select target customers",
+          description: "Choose at least one age group and one income band.",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
+    setStep((s) => Math.min(s + 1, 4));
+  };
   const back = () => setStep((s) => Math.max(s - 1, 1));
 
   const onSubmit = form.handleSubmit((data) => {
@@ -69,7 +95,7 @@ export default function ProfileWizard() {
     setLocation("/profiles");
   });
 
-  const stepTitles = ["Basics", "Target Customers", "Operating Model"];
+  const stepTitles = ["Basics", "Target Customers", "Operating Model", "Review & Save"];
 
   return (
     <AppShell title="Create Profile">
@@ -80,11 +106,11 @@ export default function ProfileWizard() {
               Business Profile Wizard
             </h1>
             <p className="mt-1 text-sm text-muted-foreground" data-testid="text-wizard-subtitle">
-              Step {step} of 3: {stepTitles[step - 1]}
+              Step {step} of 4: {stepTitles[step - 1]}
             </p>
           </div>
           <div className="flex gap-1">
-            {[1, 2, 3].map((s) => (
+            {[1, 2, 3, 4].map((s) => (
               <div
                 key={s}
                 className={`h-1.5 w-8 rounded-full transition-colors ${
@@ -213,7 +239,7 @@ export default function ProfileWizard() {
                     className="grid gap-3"
                     data-testid="radio-operating-model"
                   >
-                    {["Mixed", "Walk-in", "Destination", "Delivery-heavy"].map((model) => (
+                    {["Mixed", "Walk-in focused", "Delivery focused"].map((model) => (
                       <label
                         key={model}
                         className="flex cursor-pointer items-center gap-3 rounded-lg border p-4 hover:bg-muted/50"
@@ -229,6 +255,65 @@ export default function ProfileWizard() {
               </div>
             )}
 
+            {step === 4 && (
+              <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2">
+                <div className="space-y-1">
+                  <div className="text-sm font-semibold">Review summary</div>
+                  <div className="text-xs text-muted-foreground">
+                    Confirm the profile details before saving.
+                  </div>
+                </div>
+                <div className="rounded-xl border bg-card p-4 text-sm">
+                  <div className="grid gap-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground">Name</span>
+                      <span className="font-medium">{form.getValues("name") || "—"}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground">Sector</span>
+                      <span className="font-medium">{form.getValues("sector") || "—"}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground">Price band</span>
+                      <span className="font-medium">{form.getValues("priceBand") || "—"}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground">Age groups</span>
+                      <span className="font-medium">
+                        {form.getValues("ageGroups").length > 0
+                          ? form.getValues("ageGroups").join(", ")
+                          : "—"}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground">Income bands</span>
+                      <span className="font-medium">
+                        {form.getValues("incomeBands").length > 0
+                          ? form.getValues("incomeBands").map((band) => {
+                              const labels: Record<string, string> = {
+                                low: "Low",
+                                "lower-middle": "Lower-Middle",
+                                middle: "Middle",
+                                "upper-middle": "Upper-Middle",
+                                high: "High",
+                              };
+                              return labels[band] ?? band;
+                            }).join(", ")
+                          : "—"}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground">Reliance</span>
+                      <span className="font-medium">{form.getValues("operatingModel")}</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="rounded-xl border bg-muted/30 p-3 text-xs text-muted-foreground">
+                  You can go back to edit any step before saving.
+                </div>
+              </div>
+            )}
+
             <div className="flex items-center justify-between pt-4 border-t">
               <Button
                 type="button"
@@ -240,7 +325,7 @@ export default function ProfileWizard() {
                 <ChevronLeft className="mr-2 h-4 w-4" />
                 Back
               </Button>
-              {step < 3 ? (
+              {step < 4 ? (
                 <Button type="button" onClick={next} data-testid="button-wizard-next">
                   Next
                   <ChevronRight className="ml-2 h-4 w-4" />

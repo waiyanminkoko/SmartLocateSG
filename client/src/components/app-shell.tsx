@@ -6,6 +6,7 @@ import {
   LayoutGrid,
   Map,
   MapPinned,
+  ShieldCheck,
   Scale,
   SquareStack,
   Users,
@@ -20,6 +21,7 @@ const nav = [
   { href: "/map", label: "Map", icon: Map },
   { href: "/portfolio", label: "Portfolio", icon: SquareStack },
   { href: "/compare", label: "Compare", icon: Scale },
+  { href: "/admin", label: "Admin", icon: ShieldCheck },
 ] as const;
 
 export function AppShell({

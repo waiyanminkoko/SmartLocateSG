@@ -44,11 +44,11 @@ export default function Landing() {
               className="text-balance text-4xl font-semibold tracking-tight md:text-5xl"
               data-testid="text-hero-title"
             >
-              Pick a business profile, explore the map, and compare sites.
+              Build business profiles, score locations, and compare sites with confidence.
             </h1>
             <p className="max-w-prose text-pretty text-sm leading-6 text-muted-foreground" data-testid="text-hero-subtitle">
-              This minimal UI prototype demonstrates the core flows: creating/selecting a Business Profile,
-              viewing a quick score breakdown for a location, saving candidate sites, and comparing up to 3.
+              This prototype demonstrates core flows: profile creation, map scoring with scenario weights,
+              AI-assisted score explanations, saving candidate sites, and comparing up to 3 locations.
             </p>
 
             <div className="flex flex-wrap gap-2">

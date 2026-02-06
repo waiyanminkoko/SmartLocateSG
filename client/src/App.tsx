@@ -16,6 +16,7 @@ import ProfileWizard from "@/pages/profiles-wizard";
 import MapPage from "@/pages/map";
 import Portfolio from "@/pages/portfolio";
 import Compare from "@/pages/compare";
+import Admin from "@/pages/admin";
 
 function Router() {
   return (
@@ -29,6 +30,7 @@ function Router() {
       <Route path="/map" component={MapPage} />
       <Route path="/portfolio" component={Portfolio} />
       <Route path="/compare" component={Compare} />
+      <Route path="/admin" component={Admin} />
       <Route component={NotFound} />
     </Switch>
   );
