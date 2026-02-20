@@ -67,3 +67,12 @@ Open `http://127.0.0.1:5173`.
 - Add real scoring pipeline from OneMap, SingStat, LTA, URA datasets.
 - Replace prototype AI explanations with rule-based or LLM-backed logic.
 - Add authentication, user accounts, and portfolio ownership.
+
+**Update Log**
+February 20, 2026
+- Replaced Leaflet/OneMap tiles with Google Maps (base map, click-to-drop pin, geocoding search, Places autocomplete).
+- Added localStorage persistence for profiles and sites with a shared hook.
+- Map scoring is now generated dynamically from seeded location scores and scenario weights.
+- Portfolio and compare now read saved sites; portfolio can open a saved pin on the map.
+- Admin now includes a reset demo data action.
+- Added `.env` handling and documentation for `VITE_GOOGLE_MAPS_API_KEY`.
