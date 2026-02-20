@@ -1,0 +1,288 @@
+@startuml ClassDiagram
+left to right direction
+skinparam classAttributeIconSize 0
+'Straight lines
+skinparam linetype ortho
+skinparam nodesep 200
+skinparam ranksep 200
+
+package "Boundary" #FFDDDD {
+    class AuthenticationAPI <<boundary>> {
+        
+    }
+    class BusinessProfileAPI <<boundary>> {
+
+    }
+    class ScoringAPI <<boundary>> {
+        
+    }
+    class MapAPI <<boundary>> {
+
+    }
+    class PortfolioAPI <<boundary>> {
+
+    }
+}
+
+package "Control" #DDFFDD {
+    class AuthenticationController <<control>> {
+
+    }
+    class BusinessProfileController <<control>> {
+
+    }
+    class ScoringController <<control>> {
+        
+    }
+    class MapController <<control>> {
+        
+    }
+    class PortfolioController <<control>> {
+
+    }
+}
+
+package "Entity" #DDDDFF {
+    entity User {
+        +user_id: BIGINT
+        +name: VARCHAR(80)
+        +email: VARCHAR(120)
+        +type_code: VARCHAR(16)
+        +status: VARCHAR(16)
+        +created_at: DATETIME
+        +last_login_at: DATETIME
+    }
+
+    entity BusinessProfile {
+        +profile_id: BIGINT
+        +profile_name: VARCHAR(80)
+        +sector_code: VARCHAR(32)
+        +band_code: VARCHAR(16)
+        +reliance_code: VARCHAR(16)
+        +active_weight_config_id: BIGINT
+        +created_at: DATETIME
+        +updated_at: DATETIME
+    }
+
+    entity WeightConfig {
+        +config_id: BIGINT
+        +owner_user_id: BIGINT
+        +demographic_weight: TINYINT
+        +accessibility_weight: TINYINT
+        +rental_weight: TINYINT
+        +competition_weight: TINYINT
+        +is_preset: BOOLEAN
+        +preset_name: VARCHAR(40)
+        +created_at: DATETIME
+    }
+    ' =========================
+    ' Profile targeting (many to many via join tables)
+    ' =========================
+    package "Profile Targeting" #FFDDDD {
+        entity ProfileTargetAgeGroup {
+            +profile_id: BIGINT
+            +age_group_code: VARCHAR(16)
+        }
+
+        entity ProfileTargetIncomeBand {
+            +profile_id: BIGINT
+            +income_band_code: VARCHAR(16)
+        }
+    }
+
+    ' =========================
+    ' Geography and area data
+    ' =========================
+    package "Area Data" #FFDDDD {
+        entity PlanningArea {
+            +area_id: BIGINT
+            +area_name: VARCHAR(80)
+            +area_code: VARCHAR(16)
+            +region_name: VARCHAR(40)
+            +geometry_geojson: LONGTEXT
+            +centroid_lat: DECIMAL(9,6)
+            +centroid_lng: DECIMAL(9,6)
+            +source: VARCHAR(32)
+            +source_version: VARCHAR(16)
+            +last_updated_at: DATETIME
+        }
+
+        entity Subzone {
+            +subzone_id: BIGINT
+            +subzone_name: VARCHAR(80)
+            +subzone_code: VARCHAR(16)
+            +geometry_geojson: LONGTEXT
+            +centroid_lat: DECIMAL(9,6)
+            +centroid_lng: DECIMAL(9,6)
+            +last_updated_at: DATETIME
+        }
+
+        entity AreaDemographics {
+            +demo_id: BIGINT
+            +effective_date: DATE
+            +population_total: INT
+            +age_distribution_json: JSON
+            +income_distribution_json: JSON
+            +household_size_json: JSON
+            +economic_status_json: JSON
+            +source: VARCHAR(32)
+            +ingested_at: DATETIME
+        }
+
+        entity TransportNode {
+            +node_id: BIGINT
+            +node_type: VARCHAR(16)
+            +external_id: VARCHAR(32)
+            +name: VARCHAR(120)
+            +label: VARCHAR(120)
+            +lat: DECIMAL(9,6)
+            +lng: DECIMAL(9,6)
+            +source: VARCHAR(32)
+            +effective_date: DATE
+            +ingested_at: DATETIME
+        }
+
+        entity AreaTransportAccess {
+            +access_id: BIGINT
+            +effective_date: DATE
+            +mrt_station_count_1km: SMALLINT
+            +mrt_exit_count_500m: SMALLINT
+            +bus_stop_count_500m: SMALLINT
+            +dist_to_nearest_mrt_m: INT
+            +dist_to_nearest_bus_stop_m: INT
+            +accessibility_index: DECIMAL(6,2)
+            +computed_at: DATETIME
+        }
+
+        entity AreaVacancy {
+            +vacancy_id: BIGINT
+            +region_name: VARCHAR(40)
+            +property_type: VARCHAR(40)
+            +sector_type: VARCHAR(16)
+            +period_type: VARCHAR(16)
+            +period_start: DATE
+            +metric: VARCHAR(24)
+            +value: DECIMAL(14,3)
+            +unit: VARCHAR(32)
+            +source: VARCHAR(32)
+            +ingested_at: DATETIME
+        }
+    }
+'    =========================
+    ' Site scoring and portfolio
+    ' =========================
+    package "Scoring" #FFDDDD {
+        entity SiteScore {
+            +site_score_id: BIGINT
+            +score_target_type: VARCHAR(16)
+            +lat: DECIMAL(9,6)
+            +lng: DECIMAL(9,6)
+            +composite_score: DECIMAL(6,2)
+            +demographic_score: DECIMAL(6,2)
+            +accessibility_score: DECIMAL(6,2)
+            +rental_pressure_score: DECIMAL(6,2)
+            +competition_score: DECIMAL(6,2)
+            +computed_at: DATETIME
+            +inputs_snapshot_json: JSON
+        }
+
+        entity CompetitionSnapshot {
+            +comp_id: BIGINT
+            +radius_meters: INT
+            +competitor_count: INT
+            +competitor_types_json: JSON
+            +source: VARCHAR(32)
+            +effective_date: DATE
+            +queried_at: DATETIME
+        }
+
+        entity CandidateSite {
+            +candidate_site_id: BIGINT
+            +site_name: VARCHAR(80)
+            +address_label: VARCHAR(160)
+            +notes: TEXT
+            +lat: DECIMAL(9,6)
+            +lng: DECIMAL(9,6)
+            +saved_site_score_id: BIGINT
+            +saved_at: DATETIME
+            +last_updated_at: DATETIME
+        }
+    }
+    ' =========================
+    ' Explanations and feedback
+    ' =========================
+    package "Explanations" #FFDDDD {
+        entity Explanation {
+            +explanation_id: BIGINT
+            +dimension_code: VARCHAR(16)
+            +message_text: TEXT
+            +score_impact: DECIMAL(6,2)
+            +referenced_data_json: JSON
+            +generated_at: DATETIME
+        }
+
+        entity ExplanationFeedback {
+            +feedback_id: BIGINT
+            +rating: TINYINT
+            +comment: VARCHAR(500)
+            +created_at: DATETIME
+        }
+    }
+
+    ' =========================
+    ' Data ops
+    ' =========================
+    entity DataRefreshJob {
+    +job_id: BIGINT
+    +provider_name: VARCHAR(40)
+    +job_type: VARCHAR(32)
+    +schedule_label: VARCHAR(40)
+    +status: VARCHAR(16)
+    +started_at: DATETIME
+    +completed_at: DATETIME
+    +rows_ingested: INT
+    +error_summary: TEXT
+    }
+}
+
+Boundary ..> Control : uses
+Control ..> Entity : manages
+
+' =========================
+' Relationships (multiplicity)
+' =========================
+
+User "1" -- "0..*" BusinessProfile : owns
+User "1" -- "0..*" WeightConfig : creates
+BusinessProfile "1" -- "1" User : owner
+
+BusinessProfile "1" -- "1" WeightConfig : active weights
+BusinessProfile "1" -- "0..*" WeightConfig : can reference presets
+
+BusinessProfile "1" -- "1..*" ProfileTargetAgeGroup : targets
+BusinessProfile "1" -- "1..*" ProfileTargetIncomeBand : targets
+
+PlanningArea "1" -- "0..*" Subzone : contains
+PlanningArea "1" -- "0..*" AreaDemographics : has
+Subzone "0..1" -- "0..*" AreaDemographics : refines
+
+PlanningArea "1" -- "0..*" TransportNode : includes
+PlanningArea "1" -- "0..*" AreaTransportAccess : summarises
+PlanningArea "0..1" -- "0..*" AreaVacancy : vacancy metrics
+
+BusinessProfile "1" -- "0..*" CandidateSite : portfolio
+CandidateSite "0..*" -- "1" PlanningArea : located in
+
+BusinessProfile "1" -- "0..*" SiteScore : computed with
+SiteScore "0..*" -- "1" WeightConfig : uses
+SiteScore "0..*" -- "0..1" PlanningArea : derived area
+
+CandidateSite "0..1" -- "1" SiteScore : saved snapshot
+
+SiteScore "1" -- "0..*" Explanation : explained by
+Explanation "1" -- "0..*" ExplanationFeedback : rated by
+ExplanationFeedback "0..*" -- "1" User : authored by
+
+DataRefreshJob "0..*" -- "0..*" PlanningArea : affects
+
+@enduml
