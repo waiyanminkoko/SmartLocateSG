@@ -7,7 +7,7 @@ import { Card } from "@/components/ui/card";
 export default function Landing() {
   return (
     <div className="app-shell">
-      <header className="mx-auto flex w-full max-w-6xl items-center justify-between px-4 py-5">
+      <header className="page-container flex items-center justify-between py-5">
         <div className="flex items-center gap-2">
           <div className="grid size-9 place-items-center rounded-xl border bg-card shadow-sm">
             <MapPinned className="h-5 w-5" aria-hidden="true" />
@@ -37,7 +37,7 @@ export default function Landing() {
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-6xl px-4 pb-14 pt-10">
+      <main className="page-container pb-14 pt-10">
         <div className="grid gap-8 md:grid-cols-2 md:items-center">
           <div className="space-y-5">
             <h1
@@ -87,7 +87,7 @@ export default function Landing() {
         </div>
       </main>
 
-      <footer className="mx-auto w-full max-w-6xl px-4 pb-10">
+      <footer className="page-container pb-10">
         <div className="text-xs text-muted-foreground" data-testid="text-footer">
           SmartLocate SG • Prototype UI only
         </div>

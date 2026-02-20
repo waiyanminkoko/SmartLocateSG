@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo } from "react";
 import { Link } from "wouter";
 import { Plus, Trash2 } from "lucide-react";
 
@@ -8,13 +8,40 @@ import { Card } from "@/components/ui/card";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { mockProfiles, BusinessProfile } from "@/lib/mock-data";
 import { useToast } from "@/hooks/use-toast";
+import { useLocalStorageState } from "@/hooks/use-local-storage";
 
 export default function Profiles() {
   const { toast } = useToast();
 
-  const [profiles, setProfiles] = useState<BusinessProfile[]>(() => mockProfiles);
+  const [profiles, setProfiles] = useLocalStorageState<BusinessProfile[]>(
+    "smartlocate:profiles",
+    mockProfiles,
+  );
 
-  const activeId = useMemo(() => profiles.find((p) => p.active)?.id, [profiles]);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const raw = localStorage.getItem("smartlocate:profiles");
+    if (!raw) return;
+    try {
+      const stored = JSON.parse(raw) as BusinessProfile[];
+      if (Array.isArray(stored) && stored.length !== profiles.length) {
+        setProfiles(stored);
+      }
+    } catch {
+      // ignore malformed storage
+    }
+  }, []);
+
+  const safeProfiles = useMemo(
+    () =>
+      profiles.map((p) => ({
+        ...p,
+        incomeBands: p.incomeBands ?? [],
+      })),
+    [profiles],
+  );
+
+  const activeId = useMemo(() => safeProfiles.find((p) => p.active)?.id, [safeProfiles]);
 
   const setActive = (id: string) => {
     setProfiles((prev) => prev.map((p) => ({ ...p, active: p.id === id })));
@@ -46,7 +73,7 @@ export default function Profiles() {
           </p>
         </div>
 
-        {profiles.length === 0 ? (
+        {safeProfiles.length === 0 ? (
           <Card className="border bg-card p-6 shadow-sm">
             <div className="text-sm text-muted-foreground" data-testid="empty-profiles-text">
               No profiles yet. Create your first business profile to start scoring.
@@ -54,7 +81,7 @@ export default function Profiles() {
           </Card>
         ) : (
           <div className="grid gap-3 md:grid-cols-2">
-            {profiles.map((p) => (
+            {safeProfiles.map((p) => (
               <Card key={p.id} className="border bg-card p-5 shadow-sm" data-testid={`card-profile-${p.id}`}>
                 <div className="flex items-start justify-between gap-3">
                   <div>

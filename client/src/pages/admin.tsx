@@ -1,10 +1,11 @@
 import { useState } from "react";
-import { DatabaseZap, RefreshCcw, ShieldCheck } from "lucide-react";
+import { DatabaseZap, RefreshCcw, ShieldCheck, Trash2 } from "lucide-react";
 
 import { AppShell } from "@/components/app-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 
 type SourceStatus = "Healthy" | "Degraded" | "Offline";
@@ -75,6 +76,20 @@ export default function Admin() {
         description: "All data sources are up to date.",
       });
     }, 1200);
+  };
+
+  const resetDemoData = () => {
+    localStorage.removeItem("smartlocate:profiles");
+    localStorage.removeItem("smartlocate:sites");
+    localStorage.removeItem("compare:selected");
+    localStorage.removeItem("smartlocate:mapSelection");
+    toast({
+      title: "Demo data reset",
+      description: "Profiles, sites, and selections have been cleared.",
+    });
+    setTimeout(() => {
+      window.location.reload();
+    }, 300);
   };
 
   return (
@@ -153,6 +168,35 @@ export default function Admin() {
             <li>Degraded sources may reduce scoring accuracy.</li>
             <li>All timestamps are shown in Singapore local time.</li>
           </ul>
+        </Card>
+
+        <Card className="border bg-card p-5 shadow-sm">
+          <div className="text-sm font-semibold">Testing tools</div>
+          <div className="mt-2 text-xs text-muted-foreground">
+            Reset local demo data to its initial state.
+          </div>
+          <div className="mt-4">
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive" className="gap-2" data-testid="button-reset-demo">
+                  <Trash2 className="h-4 w-4" aria-hidden="true" />
+                  Reset demo data
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Reset demo data?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This clears profiles, sites, and selections stored in localStorage.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={resetDemoData}>Reset</AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
         </Card>
       </div>
     </AppShell>

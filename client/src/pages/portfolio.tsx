@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Link, useLocation } from "wouter";
+import { useLocation } from "wouter";
 import { FileText, Map as MapIcon, Trash2 } from "lucide-react";
 
 import { AppShell } from "@/components/app-shell";
@@ -12,13 +12,17 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { mockProfiles, mockSites, CandidateSite } from "@/lib/mock-data";
 import { useToast } from "@/hooks/use-toast";
+import { useLocalStorageState } from "@/hooks/use-local-storage";
 
 export default function Portfolio() {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
 
-  const profiles = mockProfiles;
-  const [sites, setSites] = useState<CandidateSite[]>(() => mockSites);
+  const [profiles] = useLocalStorageState("smartlocate:profiles", mockProfiles);
+  const [sites, setSites] = useLocalStorageState<CandidateSite[]>(
+    "smartlocate:sites",
+    mockSites,
+  );
   const [query, setQuery] = useState<string>("");
   const [profileFilter, setProfileFilter] = useState<string>("all");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -44,6 +48,30 @@ export default function Portfolio() {
   const updateNotes = (id: string, notes: string) => {
     setSites((prev) => prev.map((s) => (s.id === id ? { ...s, notes } : s)));
     toast({ title: "Notes saved", description: "Stored in-memory for this session." });
+  };
+
+  const openOnMap = (site: CandidateSite) => {
+    if (site.lat !== undefined && site.lng !== undefined) {
+      localStorage.setItem(
+        "smartlocate:mapSelection",
+        JSON.stringify({
+          lat: site.lat,
+          lng: site.lng,
+          profileId: site.profileId,
+          siteName: site.name,
+          siteAddress: site.address,
+        }),
+      );
+    } else {
+      toast({
+        title: "No coordinates saved",
+        description: "This site does not have a saved pin location.",
+        variant: "destructive",
+      });
+      localStorage.removeItem("smartlocate:mapSelection");
+      return;
+    }
+    setLocation("/map");
   };
 
   const toggleSelect = (id: string) => {
@@ -135,11 +163,15 @@ export default function Portfolio() {
                         />
                         Compare
                       </label>
-                      <Link href="/map">
-                        <Button variant="secondary" size="sm" className="gap-2" data-testid={`button-view-map-${s.id}`}>
-                          <MapIcon className="h-4 w-4" aria-hidden="true" /> View on map
-                        </Button>
-                      </Link>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        className="gap-2"
+                        onClick={() => openOnMap(s)}
+                        data-testid={`button-view-map-${s.id}`}
+                      >
+                        <MapIcon className="h-4 w-4" aria-hidden="true" /> View on map
+                      </Button>
 
                       <Dialog>
                         <DialogTrigger asChild>

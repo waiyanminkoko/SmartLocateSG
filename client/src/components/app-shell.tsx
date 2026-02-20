@@ -38,7 +38,7 @@ export function AppShell({
   return (
     <div className="app-shell">
       <header className="sticky top-0 z-20 border-b bg-background/70 backdrop-blur">
-        <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-3 px-4 py-3">
+        <div className="page-container flex items-center justify-between gap-3 py-3">
           <div className="flex items-center gap-3">
             <Link href="/dashboard" className="flex items-center gap-2" data-testid="link-home">
               <div className="grid size-9 place-items-center rounded-xl border bg-card shadow-sm">
@@ -96,7 +96,7 @@ export function AppShell({
         </div>
 
         <div className="border-t md:hidden">
-          <div className="mx-auto flex w-full max-w-6xl items-center gap-1 overflow-x-auto px-2 py-2">
+          <div className="page-container flex items-center gap-1 overflow-x-auto py-2">
             {nav.map((item) => {
               const active = location === item.href;
               const Icon = item.icon;
@@ -117,9 +117,9 @@ export function AppShell({
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-6xl px-4 py-8">{children}</main>
+      <main className="page-container py-8">{children}</main>
 
-      <footer className="mx-auto w-full max-w-6xl px-4 pb-10">
+      <footer className="page-container pb-10">
         <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
           <div data-testid="text-footer-left">SmartLocate SG • Data sources: OneMap, SingStat, LTA, URA</div>
           <div className="flex items-center gap-2" data-testid="text-footer-right">

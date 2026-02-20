@@ -189,4 +189,8 @@
       radial-gradient(700px 380px at 100% 25%, hsl(var(--chart-5) / 0.08), transparent 60%),
       linear-gradient(to bottom, hsl(var(--background)), hsl(var(--background)));
   }
+
+  .page-container {
+    @apply mx-auto w-full max-w-[1400px] px-4 md:px-6;
+  }
 }

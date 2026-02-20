@@ -9,10 +9,11 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ChartContainer, ChartLegend, ChartLegendContent, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { mockSites, CandidateSite } from "@/lib/mock-data";
 import { useToast } from "@/hooks/use-toast";
+import { useLocalStorageState } from "@/hooks/use-local-storage";
 
 export default function Compare() {
   const { toast } = useToast();
-  const [sites] = useState<CandidateSite[]>(() => mockSites);
+  const [sites] = useLocalStorageState<CandidateSite[]>("smartlocate:sites", mockSites);
 
   const [selected, setSelected] = useState<string[]>(() => {
     if (typeof window === "undefined") {
