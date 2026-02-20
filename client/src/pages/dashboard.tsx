@@ -5,6 +5,7 @@ import { AppShell } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { mockProfiles, mockSites } from "@/lib/mock-data";
+import { useLocalStorageState } from "@/hooks/use-local-storage";
 
 function Stat({ label, value, testid }: { label: string; value: string; testid: string }) {
   return (
@@ -16,8 +17,8 @@ function Stat({ label, value, testid }: { label: string; value: string; testid: 
 }
 
 export default function Dashboard() {
-  const profiles = mockProfiles;
-  const sites = mockSites;
+  const [profiles] = useLocalStorageState("smartlocate:profiles", mockProfiles);
+  const [sites] = useLocalStorageState("smartlocate:sites", mockSites);
 
   return (
     <AppShell

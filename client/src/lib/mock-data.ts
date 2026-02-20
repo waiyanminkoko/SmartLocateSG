@@ -22,6 +22,8 @@ export type CandidateSite = {
   savedAt: string;
   notes?: string;
   profileId: string;
+  lat?: number;
+  lng?: number;
 };
 
 export const mockProfiles: BusinessProfile[] = [
@@ -61,6 +63,8 @@ export const mockSites: CandidateSite[] = [
     savedAt: "Feb 4, 2026",
     notes: "Strong weekday footfall; check nearby competitors on weekends.",
     profileId: "p1",
+    lat: 1.2868,
+    lng: 103.8274,
   },
   {
     id: "s2",
@@ -74,6 +78,8 @@ export const mockSites: CandidateSite[] = [
     savedAt: "Feb 3, 2026",
     notes: "High accessibility; watch rental pressure.",
     profileId: "p1",
+    lat: 1.3172,
+    lng: 103.8927,
   },
   {
     id: "s3",
@@ -87,5 +93,7 @@ export const mockSites: CandidateSite[] = [
     savedAt: "Feb 2, 2026",
     notes: "Good family demographic; dense competition cluster.",
     profileId: "p2",
+    lat: 1.3333,
+    lng: 103.7436,
   },
 ];

@@ -12,6 +12,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
+import { useLocalStorageState } from "@/hooks/use-local-storage";
+import { mockProfiles, type BusinessProfile } from "@/lib/mock-data";
 
 const sectors = [
   "Professional services",
@@ -46,6 +48,10 @@ export default function ProfileWizard() {
   const [step, setStep] = useState(1);
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const [, setProfiles] = useLocalStorageState<BusinessProfile[]>(
+    "smartlocate:profiles",
+    mockProfiles,
+  );
 
   const form = useForm({
     defaultValues: {
@@ -88,6 +94,37 @@ export default function ProfileWizard() {
   const back = () => setStep((s) => Math.max(s - 1, 1));
 
   const onSubmit = form.handleSubmit((data) => {
+    const incomeLabels = data.incomeBands.map((band) => {
+      const entry = incomeBands.find((i) => i.value === band);
+      if (!entry) return band;
+      return entry.label.split(" ")[0];
+    });
+
+    const updatedAt = new Date().toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+
+    const newProfile: BusinessProfile = {
+      id:
+        typeof crypto !== "undefined" && "randomUUID" in crypto
+          ? crypto.randomUUID()
+          : `p-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+      name: data.name,
+      sector: data.sector,
+      priceBand: data.priceBand,
+      ageGroups: data.ageGroups,
+      incomeBands: incomeLabels,
+      operatingModel: data.operatingModel,
+      updatedAt,
+      active: true,
+    };
+
+    setProfiles((prev) => [
+      newProfile,
+      ...prev.map((p) => ({ ...p, active: false })),
+    ]);
     toast({
       title: "Profile created",
       description: `${data.name} has been added to your profiles.`,

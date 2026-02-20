@@ -7,17 +7,21 @@ SmartLocate SG is a UI-first prototype for a data-driven business site selection
 - Dashboard with quick actions, recent profiles, and recent sites.
 - Business profile list with active profile selection and delete.
 - Multi-step business profile wizard with validation and review step.
-- Interactive map (OneMap tiles via Leaflet), pan/zoom, click-to-drop pin.
+- Interactive Google Maps base map, pan/zoom, click-to-drop pin.
+- Postal code / address search (Google Geocoding API) + Places autocomplete.
 - Scenario presets and custom weight sliders (auto-normalized).
 - Overlay legend, planning area details panel, and data freshness banner.
 - Score breakdown with AI-style explanation dialog and feedback buttons.
 - Portfolio with profile filter, notes editor, and compare selection.
+- LocalStorage persistence for profiles and sites (temporary demo storage).
 - Compare dashboard with side-by-side stats and a bar chart.
 - Admin data status screen with source freshness and manual refresh.
+- Admin reset button for clearing demo data.
 
 **Current Limitations**
 - All data is mocked in `client/src/lib/mock-data.ts`.
-- Scores are static and not computed from real datasets.
+- Scores are simulated (not computed from real datasets).
+- Postal search requires Google Geocoding API to be enabled.
 - Backend API routes and persistence are not implemented.
 - Map overlays (choropleths, MRT/bus layers) are UI placeholders only.
 
@@ -37,12 +41,21 @@ SmartLocate SG is a UI-first prototype for a data-driven business site selection
 - React 19 + TypeScript + Vite
 - Wouter routing
 - Tailwind v4 + shadcn/ui components
-- Leaflet map with OneMap tiles
+- Google Maps JavaScript API
 - Express server scaffold (dev middleware + production static hosting)
 
 **Run Locally**
 ```bash
 npm install
+```
+
+Create a `.env` file with:
+```bash
+VITE_GOOGLE_MAPS_API_KEY=your_key_here
+```
+
+Then run:
+```bash
 HOST=127.0.0.1 PORT=5173 npm run dev
 ```
 Open `http://127.0.0.1:5173`.
@@ -55,3 +68,11 @@ Open `http://127.0.0.1:5173`.
 - Replace prototype AI explanations with rule-based or LLM-backed logic.
 - Add authentication, user accounts, and portfolio ownership.
 
+**Update Log**
+February 20, 2026
+- Replaced Leaflet/OneMap tiles with Google Maps (base map, click-to-drop pin, geocoding search, Places autocomplete).
+- Added localStorage persistence for profiles and sites with a shared hook.
+- Map scoring is now generated dynamically from seeded location scores and scenario weights.
+- Portfolio and compare now read saved sites; portfolio can open a saved pin on the map.
+- Admin now includes a reset demo data action.
+- Added `.env` handling and documentation for `VITE_GOOGLE_MAPS_API_KEY`.
