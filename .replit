@@ -1,6 +1,6 @@
 modules = ["nodejs-20", "web", "postgresql-16"]
-run = "npm run dev"
-hidden = [".config", ".git", "generated-icon.png", "node_modules", "dist"]
+run = "cd frontend && npm run dev"
+hidden = [".config", ".git", "generated-icon.png", "frontend/node_modules", "frontend/dist"]
 
 [nix]
 channel = "stable-24_05"
@@ -14,8 +14,8 @@ PORT = "5000"
 
 [deployment]
 deploymentTarget = "static"
-build = ["npm", "run", "build"]
-publicDir = "dist/public"
+build = ["cd", "frontend", "&&", "npm", "run", "build"]
+publicDir = "frontend/dist/public"
 
 [workflows]
 runButton = "Project"
@@ -35,7 +35,7 @@ author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "npm run dev:client"
+args = "cd frontend && npm run dev:client"
 waitForPort = 5000
 
 [agent]
