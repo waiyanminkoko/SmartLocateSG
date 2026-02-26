@@ -22,6 +22,15 @@ package "Boundary" #FFDDDD {
     class PortfolioAPI <<boundary>> {
 
     }
+    class ComparisonAPI <<boundary>> {
+
+    }
+    class NotesAPI <<boundary>> {
+
+    }
+    class LocationAPI <<boundary>> {
+
+    }
 }
 
 package "Control" #DDFFDD {
@@ -40,6 +49,18 @@ package "Control" #DDFFDD {
     class PortfolioController <<control>> {
 
     }
+    class ComparisonController <<control>> {
+
+    }
+    class ScoreEngine <<control>> {
+
+    }
+    class LocationController <<control>> {
+
+    }
+    class NotesController <<control>> {
+
+    }
 }
 
 package "Entity" #DDDDFF {
@@ -55,6 +76,7 @@ package "Entity" #DDDDFF {
 
     entity BusinessProfile {
         +profile_id: BIGINT
+        +owner_user_id: BIGINT
         +profile_name: VARCHAR(80)
         +sector_code: VARCHAR(32)
         +band_code: VARCHAR(16)
@@ -67,6 +89,7 @@ package "Entity" #DDDDFF {
     entity WeightConfig {
         +config_id: BIGINT
         +owner_user_id: BIGINT
+        +profile_id: BIGINT
         +demographic_weight: TINYINT
         +accessibility_weight: TINYINT
         +rental_weight: TINYINT
@@ -183,7 +206,9 @@ package "Entity" #DDDDFF {
             +rental_pressure_score: DECIMAL(6,2)
             +competition_score: DECIMAL(6,2)
             +computed_at: DATETIME
+            +method_version: VARCHAR(32)
             +inputs_snapshot_json: JSON
+            +breakdown_details_json: JSON
         }
 
         entity CompetitionSnapshot {
@@ -198,14 +223,26 @@ package "Entity" #DDDDFF {
 
         entity CandidateSite {
             +candidate_site_id: BIGINT
+            +user_id: BIGINT
+            +profile_id: BIGINT
             +site_name: VARCHAR(80)
             +address_label: VARCHAR(160)
-            +notes: TEXT
+            +postal_code: VARCHAR(16)
             +lat: DECIMAL(9,6)
             +lng: DECIMAL(9,6)
+            +planning_area_id: BIGINT
             +saved_site_score_id: BIGINT
             +saved_at: DATETIME
             +last_updated_at: DATETIME
+            +last_viewed_at: DATETIME
+        }
+
+        entity SiteNote {
+            +note_id: BIGINT
+            +candidate_site_id: BIGINT
+            +text: TEXT
+            +created_at: DATETIME
+            +updated_at: DATETIME
         }
     }
     ' =========================
@@ -226,6 +263,43 @@ package "Entity" #DDDDFF {
             +rating: TINYINT
             +comment: VARCHAR(500)
             +created_at: DATETIME
+        }
+    }
+
+    ' =========================
+    ' Comparison
+    ' =========================
+    package "Comparison" #FFDDDD {
+        entity ComparisonSession {
+            +session_id: BIGINT
+            +user_id: BIGINT
+            +profile_id: BIGINT
+            +created_at: DATETIME
+            +status: VARCHAR(16)
+        }
+
+        entity ComparisonItem {
+            +item_id: BIGINT
+            +session_id: BIGINT
+            +candidate_site_id: BIGINT
+            +position: INT
+        }
+
+        entity ComparisonResult {
+            +result_id: BIGINT
+            +session_id: BIGINT
+            +generated_at: DATETIME
+            +summary_json: JSON
+        }
+
+        entity ResultEntry {
+            +entry_id: BIGINT
+            +result_id: BIGINT
+            +candidate_site_id: BIGINT
+            +rank: INT
+            +composite_score: DECIMAL(6,2)
+            +delta_from_best: DECIMAL(6,2)
+            +notes_json: JSON
         }
     }
 
@@ -278,10 +352,18 @@ SiteScore "0..*" -- "1" WeightConfig : uses
 SiteScore "0..*" -- "0..1" PlanningArea : derived area
 
 CandidateSite "0..1" -- "1" SiteScore : saved snapshot
+CandidateSite "1" -- "0..*" SiteNote : has
 
 SiteScore "1" -- "0..*" Explanation : explained by
 Explanation "1" -- "0..*" ExplanationFeedback : rated by
 ExplanationFeedback "0..*" -- "1" User : authored by
+
+User "1" -- "0..*" ComparisonSession : creates
+ComparisonSession "1" -- "2..*" ComparisonItem : contains
+ComparisonItem "0..*" -- "1" CandidateSite : references
+ComparisonSession "1" -- "0..*" ComparisonResult : generates
+ComparisonResult "1" -- "2..*" ResultEntry : contains
+ResultEntry "0..*" -- "1" CandidateSite : references
 
 DataRefreshJob "0..*" -- "0..*" PlanningArea : affects
 
