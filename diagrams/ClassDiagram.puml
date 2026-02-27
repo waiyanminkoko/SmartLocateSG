@@ -14,7 +14,12 @@ package "Boundary" #FFDDDD {
 
     }
     class ScoringAPI <<boundary>> {
-        
+        +calculateSiteScore(type: Score): SiteScore
+        +precomputeAreaProfile(): AreaProfile
+        +applyScenario(scenario: Scenario): WeightConfig
+        +updateWeights(): WeightConfig
+        +resetWeights(): WeightConfig
+        +generateInsight(type:Score): List<Explanation>
     }
     class MapAPI <<boundary>> {
 
@@ -41,7 +46,12 @@ package "Control" #DDFFDD {
 
     }
     class ScoringController <<control>> {
-        
+        +calculateSiteScore(type: Score): SiteScore
+        +precomputeAreaProfile(): AreaProfile
+        +applyScenario(scenario: Scenario): WeightConfig
+        +updateWeights(): WeightConfig
+        +resetWeights(): WeightConfig
+        +generateInsight(type:Score): List<Explanation>
     }
     class MapController <<control>> {
         
@@ -53,13 +63,29 @@ package "Control" #DDFFDD {
 
     }
     class ScoreEngine <<control>> {
-
+        +computeAreaProfile(): AreaProfile
+        +computeScore(): DECIMAL
     }
     class LocationController <<control>> {
 
     }
     class NotesController <<control>> {
 
+    }
+}
+
+package "Enum" #DDDFFD{
+    enum Scenario {
+        NORMAL_HOLIDAY_PEAK
+        PANDEMIC_DELIVERY
+        COST_SAVING
+    }
+    enum Score {
+        DEMOGRAPHIC
+        ACCESSIBILITY
+        RENTAL
+        COMPETITION
+        COMPOSITE
     }
 }
 
@@ -117,6 +143,20 @@ package "Entity" #DDDDFF {
     ' Geography and area data
     ' =========================
     package "Area Data" #FFDDDD {
+        entity AreaProfile {
+            +area_profile_id: BIGINT
+            +planning_area_id: BIGINT
+            +effective_date: DATE
+
+            +demographic_index: DECIMAL(6,2)
+            +accessibility_index: DECIMAL(6,2)
+            +rental_pressure_index: DECIMAL(6,2)
+            +competition_index: DECIMAL(6,2)
+
+            +computed_at: DATETIME
+            +method_version: VARCHAR(32)
+        }
+
         entity PlanningArea {
             +area_id: BIGINT
             +area_name: VARCHAR(80)
@@ -321,6 +361,8 @@ package "Entity" #DDDDFF {
 
 Boundary ..> Control : uses
 Control ..> Entity : manages
+Boundary ..> Enum : uses
+Control ..> Enum : uses
 
 ' =========================
 ' Relationships (multiplicity)
