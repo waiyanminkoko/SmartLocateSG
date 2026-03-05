@@ -1,0 +1,736 @@
+@startuml ClassDiagram
+skinparam classAttributeIconSize 0
+skinparam nodesep 40
+skinparam ranksep 60
+skinparam padding 5
+skinparam roundcorner 5
+skinparam defaultFontSize 10
+
+package "Boundary" #FFDDDD {
+    class AuthenticationAPI <<boundary>> {
+        - supabase : SupabaseAuthClient
+        --
+        + register(email: str, password: str, userType: str) : AuthResponse
+        + verifyEmail(token: str) : AuthResponse
+        + login(email: str, password: str) : AuthResponse
+        + logout(accessToken: str) : void
+        + requestPasswordReset(email: str) : void
+        + resetPassword(token: str, newPassword: str) : AuthResponse
+        + resendVerificationEmail(email: str) : void
+        + refreshSession(refreshToken: str) : AuthResponse
+    }
+    class BusinessProfilePage <<boundary>> {
+        - userId : string
+        - profiles : BusinessProfile[]
+        - activeProfileId : string | null
+        - isWizardOpen : boolean
+        - isLoading : boolean
+        - errorMessage : string | null
+        --
+        + componentDidMount() : void
+        + fetchProfiles() : Promise<void>
+        + handleSetActive(profileId : string) : void
+        + handleCreateNew() : void
+        + handleEdit(profileId : string) : void
+        + handleDeleteConfirmed(profileId : string) : Promise<void>
+        + handleWizardSubmit(formData : ProfileFormData) : Promise<void>
+        + handleNavigateToMap() : void
+        + showSuccessToast(message : string) : void
+        + showErrorToast(message : string) : void
+        + render() : JSX
+    }
+    class BusinessProfileListView <<boundary>> {
+        - profiles : BusinessProfile[]
+        - activeProfileId : string
+        - isDeleteModalOpen : boolean
+        --
+        + renderProfileCard(profile : BusinessProfile) : JSX
+        + renderEmptyState() : JSX
+        + handleEditClick(profileId : string) : void
+        + handleDeleteClick(profileId : string) : void
+        + handleSetActiveClick(profileId : string) : void
+        + handleDeleteConfirm() : void
+        + render() : JSX
+    }
+    class BusinessProfileWizard <<boundary>> {
+        - currentStep : int
+        - totalSteps : int
+        - formData : ProfileFormData
+        - validationErrors : Map<string, string>
+        - isSubmitting : boolean
+        - aiSuggestions : string | null
+        --
+        + renderStep(step : int) : JSX
+        + validateCurrentStep() : boolean
+        + handleNext() : void
+        + handleBack() : void
+        + handleFieldChange(field : string, value : any) : void
+        + handleMultiSelectToggle(field : string, value : string) : void
+        + handleSubmit() : Promise<void>
+        + requestAISuggestions(sector : string) : Promise<void>
+        + resetForm() : void
+        + render() : JSX
+    }
+    class ScoringAPI <<boundary>> {
+        +calculateSiteScore(type: Score): SiteScore
+        +precomputeAreaProfile(): AreaProfile
+        +applyScenario(scenario: Scenario): WeightConfig
+        +updateWeights(): WeightConfig
+        +resetWeights(): WeightConfig
+        +generateInsight(type:Score): List<Explanation>
+    }
+    class MapAPI <<boundary>> {
+
+    }
+    class PortfolioAPI <<boundary>> {
+
+    }
+    class ComparisonAPI <<boundary>> {
+
+    }
+    class NotesAPI <<boundary>> {
+
+    }
+    class LocationAPI <<boundary>> {
+
+    }
+}
+
+package "Control" #DDFFDD {
+    class AuthenticationController <<control>> {
+        - auth_service : AuthService
+        --
+        + register(request: HttpRequest) : HttpResponse
+        + verify_email(request: HttpRequest) : HttpResponse
+        + login(request: HttpRequest) : HttpResponse
+        + logout(request: HttpRequest) : HttpResponse
+        + request_password_reset(request: HttpRequest) : HttpResponse
+        + reset_password(request: HttpRequest) : HttpResponse
+        + resend_verification(request: HttpRequest) : HttpResponse
+        + refresh_session(request: HttpRequest) : HttpResponse
+    }
+    class AuthService <<control>> {
+        - auth_client : SupabaseAuthClient
+        - db_client : SupabaseDBClient
+        --
+        + register(email: str, password: str, user_type: str) : User
+        + verify_email(token: str) : bool
+        + login(email: str, password: str) : AuthSession
+        + logout(access_token: str) : void
+        + request_password_reset(email: str) : void
+        + reset_password(token: str, new_password: str) : bool
+        + resend_verification_email(email: str) : void
+        + get_current_user(token: str) : User
+        + validate_token(token: str) : bool
+        + get_user_id(token: str) : str
+        + require_authenticated(token: str) : User
+        + refresh_session(refresh_token: str) : AuthSession
+        - hash_password(password: str) : str
+        - validate_password_policy(password: str) : ValidationResult
+        - check_email_unique(email: str) : bool
+    }
+    class BusinessProfileController <<control>> {
+        - service : BusinessProfileService
+        - auth_service : AuthService
+        --
+        + create_profile(request : HttpRequest) : HttpResponse
+        + get_all_profiles(request : HttpRequest) : HttpResponse
+        + get_profile_by_id(request : HttpRequest, profile_id : str) : HttpResponse
+        + update_profile(request : HttpRequest, profile_id : str) : HttpResponse
+        + delete_profile(request : HttpRequest, profile_id : str) : HttpResponse
+        + set_active_profile(request : HttpRequest, profile_id : str) : HttpResponse
+        + get_dashboard_summary(request : HttpRequest) : HttpResponse
+    }
+    class BusinessProfileService <<control>> {
+        - db_client : SupabaseDBClient
+        - auth_client : SupabaseAuthClient
+        - ai_agent : AIAgentAPI
+        --
+        + create_profile(user_id : str, data : dict) : BusinessProfile
+        + get_profiles_by_user(user_id : str) : list[BusinessProfile]
+        + get_recent_profiles(user_id : str, limit : int) : list[BusinessProfile]
+        + get_profiles_count(user_id : str) : int
+        + get_profile_by_id(profile_id : str, user_id : str) : BusinessProfile
+        + update_profile(profile_id : str, user_id : str, data : dict) : BusinessProfile
+        + delete_profile(profile_id : str, user_id : str) : bool
+        + set_active_profile(user_id : str, profile_id : str) : bool
+        + get_active_profile(user_id : str) : BusinessProfile
+        + validate_profile_data(data : dict) : ValidationResult
+        + check_ownership(profile_id : str, user_id : str) : bool
+        + get_ai_profile_insights(profile : BusinessProfile) : str
+    }
+    class ScoringController <<control>> {
+        +calculateSiteScore(type: Score): SiteScore
+        +precomputeAreaProfile(): AreaProfile
+        +applyScenario(scenario: Scenario): WeightConfig
+        +updateWeights(): WeightConfig
+        +resetWeights(): WeightConfig
+        +generateInsight(type:Score): List<Explanation>
+    }
+    class MapController <<control>> {
+        
+    }
+    class PortfolioController <<control>> {
+
+    }
+    class ComparisonController <<control>> {
+
+    }
+    class ScoreEngine <<control>> {
+        +computeAreaProfile(): AreaProfile
+        +computeScore(): DECIMAL
+    }
+    class LocationController <<control>> {
+
+    }
+    class NotesController <<control>> {
+
+    }
+}
+
+package "Enum" #DDDFFD{
+    enum Scenario {
+        NORMAL_HOLIDAY_PEAK
+        PANDEMIC_DELIVERY
+        COST_SAVING
+    }
+    enum Score {
+        DEMOGRAPHIC
+        ACCESSIBILITY
+        RENTAL
+        COMPETITION
+        COMPOSITE
+    }
+    enum BusinessSector {
+        PROFESSIONAL_SERVICES
+        EDUCATION_AND_TRAINING
+        HEALTH_AND_WELLNESS
+        BEAUTY_AND_PERSONAL_CARE
+        ENTERTAINMENT_AND_LEISURE
+        SUPERMARKET_RETAIL_SHOWROOMS
+    }
+    enum PriceBand {
+        BAND_1_20
+        BAND_21_50
+        BAND_51_100
+        BAND_100_500
+        BAND_500_1000
+        BAND_1000_PLUS
+    }
+    enum AgeGroup {
+        AGE_18_24
+        AGE_25_34
+        AGE_35_44
+        AGE_45_54
+        AGE_55_64
+        AGE_65_PLUS
+    }
+    enum IncomeBand {
+        LOW_UNDER_3000
+        LOWER_MIDDLE_3000_5000
+        MIDDLE_5000_8000
+        UPPER_MIDDLE_8000_12000
+        HIGH_ABOVE_12000
+    }
+    enum RelianceType {
+        WALK_IN_FOCUSED
+        DELIVERY_FOCUSED
+        MIXED
+    }
+    enum UserType {
+        SME_OWNER
+        FRANCHISE_MNC
+        COMMERCIAL_AGENT
+        ADMIN
+    }
+    enum AccountStatus {
+        PENDING
+        ACTIVE
+        DEACTIVATED
+    }
+    enum TokenType {
+        EMAIL_VERIFICATION
+        PASSWORD_RESET
+    }
+}
+
+package "Entity" #DDDDFF {
+
+    ' =========================
+    ' Authentication entities
+    ' =========================
+    package "Authentication" #FFDDDD {
+        entity User {
+            +user_id: BIGINT
+            +name: VARCHAR(80)
+            +email: VARCHAR(120)
+            +type_code: VARCHAR(16)
+            +status: VARCHAR(16)
+            +created_at: DATETIME
+            +last_login_at: DATETIME
+            --
+            + get_profiles() : list[BusinessProfile]
+            + get_display_name() : str
+            + is_admin() : bool
+        }
+
+        entity AuthSession {
+            +session_id: BIGINT
+            +user_id: BIGINT
+            +access_token: VARCHAR(512)
+            +refresh_token: VARCHAR(512)
+            +created_at: DATETIME
+            +expires_at: DATETIME
+            +last_active_at: DATETIME
+            +is_active: BOOLEAN
+            --
+            + is_expired() : bool
+            + invalidate() : void
+        }
+
+        entity AuthToken {
+            +token_id: BIGINT
+            +user_id: BIGINT
+            +token_hash: VARCHAR(256)
+            +token_type: VARCHAR(32)
+            +created_at: DATETIME
+            +expires_at: DATETIME
+            +used_at: DATETIME
+            +is_used: BOOLEAN
+            --
+            + is_expired() : bool
+            + is_valid() : bool
+            + mark_used() : void
+        }
+    }
+
+    entity BusinessProfile {
+        +profile_id: BIGINT
+        +owner_user_id: BIGINT
+        +profile_name: VARCHAR(80)
+        +sector_code: VARCHAR(32)
+        +band_code: VARCHAR(16)
+        +reliance_code: VARCHAR(16)
+        +active_weight_config_id: BIGINT
+        +created_at: DATETIME
+        +updated_at: DATETIME
+        --
+        + validate() : ValidationResult
+        + to_dict() : dict
+        + get_weight_preset() : dict
+        + get_reliance_weight_config() : dict
+        + has_age_group(group : AgeGroup) : bool
+        + has_income_band(band : IncomeBand) : bool
+        + get_sector_display_name() : str
+        + get_summary_label() : str
+        {static} + from_dict(data : dict) : BusinessProfile
+    }
+
+    ' =========================
+    ' Business Profile Value Objects
+    ' =========================
+    class ProfileFormData <<value object>> {
+        + profile_name : str
+        + sector : str
+        + price_bands : list[str]
+        + target_age_groups : list[str]
+        + target_income_bands : list[str]
+        + reliance_type : str
+        --
+        + to_dict() : dict
+        + is_complete() : bool
+        + validate_age_groups() : bool
+        + validate_income_bands() : bool
+    }
+
+    class ValidationResult <<value object>> {
+        - _is_valid : bool
+        - errors : dict[str, str]
+        --
+        + add_error(field : str, message : str) : void
+        + is_valid() : bool
+        + get_errors() : dict[str, str]
+        + get_first_error() : str | None
+        + merge(other : ValidationResult) : ValidationResult
+    }
+
+    entity WeightConfig {
+        +config_id: BIGINT
+        +owner_user_id: BIGINT
+        +profile_id: BIGINT
+        +demographic_weight: TINYINT
+        +accessibility_weight: TINYINT
+        +rental_weight: TINYINT
+        +competition_weight: TINYINT
+        +is_preset: BOOLEAN
+        +preset_name: VARCHAR(40)
+        +created_at: DATETIME
+    }
+    ' =========================
+    ' Profile targeting (many to many via join tables)
+    ' =========================
+    package "Profile Targeting" #FFDDDD {
+        entity ProfileTargetAgeGroup {
+            +profile_id: BIGINT
+            +age_group_code: VARCHAR(16)
+        }
+
+        entity ProfileTargetIncomeBand {
+            +profile_id: BIGINT
+            +income_band_code: VARCHAR(16)
+        }
+    }
+
+    ' =========================
+    ' Geography and area data
+    ' =========================
+    package "Area Data" #FFDDDD {
+        entity AreaProfile {
+            +area_profile_id: BIGINT
+            +planning_area_id: BIGINT
+            +effective_date: DATE
+
+            +demographic_index: DECIMAL(6,2)
+            +accessibility_index: DECIMAL(6,2)
+            +rental_pressure_index: DECIMAL(6,2)
+            +competition_index: DECIMAL(6,2)
+
+            +computed_at: DATETIME
+            +method_version: VARCHAR(32)
+        }
+
+        entity PlanningArea {
+            +area_id: BIGINT
+            +area_name: VARCHAR(80)
+            +area_code: VARCHAR(16)
+            +region_name: VARCHAR(40)
+            +geometry_geojson: LONGTEXT
+            +centroid_lat: DECIMAL(9,6)
+            +centroid_lng: DECIMAL(9,6)
+            +source: VARCHAR(32)
+            +source_version: VARCHAR(16)
+            +last_updated_at: DATETIME
+        }
+
+        entity Subzone {
+            +subzone_id: BIGINT
+            +subzone_name: VARCHAR(80)
+            +subzone_code: VARCHAR(16)
+            +geometry_geojson: LONGTEXT
+            +centroid_lat: DECIMAL(9,6)
+            +centroid_lng: DECIMAL(9,6)
+            +last_updated_at: DATETIME
+        }
+
+        entity AreaDemographics {
+            +demo_id: BIGINT
+            +effective_date: DATE
+            +population_total: INT
+            +age_distribution_json: JSON
+            +income_distribution_json: JSON
+            +household_size_json: JSON
+            +economic_status_json: JSON
+            +source: VARCHAR(32)
+            +ingested_at: DATETIME
+        }
+
+        entity TransportNode {
+            +node_id: BIGINT
+            +node_type: VARCHAR(16)
+            +external_id: VARCHAR(32)
+            +name: VARCHAR(120)
+            +label: VARCHAR(120)
+            +lat: DECIMAL(9,6)
+            +lng: DECIMAL(9,6)
+            +source: VARCHAR(32)
+            +effective_date: DATE
+            +ingested_at: DATETIME
+        }
+
+        entity AreaTransportAccess {
+            +access_id: BIGINT
+            +effective_date: DATE
+            +mrt_station_count_1km: SMALLINT
+            +mrt_exit_count_500m: SMALLINT
+            +bus_stop_count_500m: SMALLINT
+            +dist_to_nearest_mrt_m: INT
+            +dist_to_nearest_bus_stop_m: INT
+            +accessibility_index: DECIMAL(6,2)
+            +computed_at: DATETIME
+        }
+
+        entity AreaVacancy {
+            +vacancy_id: BIGINT
+            +region_name: VARCHAR(40)
+            +property_type: VARCHAR(40)
+            +sector_type: VARCHAR(16)
+            +period_type: VARCHAR(16)
+            +period_start: DATE
+            +metric: VARCHAR(24)
+            +value: DECIMAL(14,3)
+            +unit: VARCHAR(32)
+            +source: VARCHAR(32)
+            +ingested_at: DATETIME
+        }
+    }
+'    =========================
+    ' Site scoring and portfolio
+    ' =========================
+    package "Scoring" #FFDDDD {
+        entity SiteScore {
+            +site_score_id: BIGINT
+            +score_target_type: VARCHAR(16)
+            +lat: DECIMAL(9,6)
+            +lng: DECIMAL(9,6)
+            +composite_score: DECIMAL(6,2)
+            +demographic_score: DECIMAL(6,2)
+            +accessibility_score: DECIMAL(6,2)
+            +rental_pressure_score: DECIMAL(6,2)
+            +competition_score: DECIMAL(6,2)
+            +computed_at: DATETIME
+            +method_version: VARCHAR(32)
+            +inputs_snapshot_json: JSON
+            +breakdown_details_json: JSON
+        }
+
+        entity CompetitionSnapshot {
+            +comp_id: BIGINT
+            +radius_meters: INT
+            +competitor_count: INT
+            +competitor_types_json: JSON
+            +source: VARCHAR(32)
+            +effective_date: DATE
+            +queried_at: DATETIME
+        }
+
+        entity CandidateSite {
+            +candidate_site_id: BIGINT
+            +user_id: BIGINT
+            +profile_id: BIGINT
+            +site_name: VARCHAR(80)
+            +address_label: VARCHAR(160)
+            +postal_code: VARCHAR(16)
+            +lat: DECIMAL(9,6)
+            +lng: DECIMAL(9,6)
+            +planning_area_id: BIGINT
+            +saved_site_score_id: BIGINT
+            +saved_at: DATETIME
+            +last_updated_at: DATETIME
+            +last_viewed_at: DATETIME
+        }
+
+        entity SiteNote {
+            +note_id: BIGINT
+            +candidate_site_id: BIGINT
+            +text: TEXT
+            +created_at: DATETIME
+            +updated_at: DATETIME
+        }
+    }
+    ' =========================
+    ' Explanations and feedback
+    ' =========================
+    package "Explanations" #FFDDDD {
+        entity Explanation {
+            +explanation_id: BIGINT
+            +dimension_code: VARCHAR(16)
+            +message_text: TEXT
+            +score_impact: DECIMAL(6,2)
+            +referenced_data_json: JSON
+            +generated_at: DATETIME
+        }
+
+        entity ExplanationFeedback {
+            +feedback_id: BIGINT
+            +rating: TINYINT
+            +comment: VARCHAR(500)
+            +created_at: DATETIME
+        }
+    }
+
+    ' =========================
+    ' Comparison
+    ' =========================
+    package "Comparison" #FFDDDD {
+        entity ComparisonSession {
+            +session_id: BIGINT
+            +user_id: BIGINT
+            +profile_id: BIGINT
+            +created_at: DATETIME
+            +status: VARCHAR(16)
+        }
+
+        entity ComparisonItem {
+            +item_id: BIGINT
+            +session_id: BIGINT
+            +candidate_site_id: BIGINT
+            +position: INT
+        }
+
+        entity ComparisonResult {
+            +result_id: BIGINT
+            +session_id: BIGINT
+            +generated_at: DATETIME
+            +summary_json: JSON
+        }
+
+        entity ResultEntry {
+            +entry_id: BIGINT
+            +result_id: BIGINT
+            +candidate_site_id: BIGINT
+            +rank: INT
+            +composite_score: DECIMAL(6,2)
+            +delta_from_best: DECIMAL(6,2)
+            +notes_json: JSON
+        }
+    }
+
+    ' =========================
+    ' Data ops
+    ' =========================
+    entity DataRefreshJob {
+    +job_id: BIGINT
+    +provider_name: VARCHAR(40)
+    +job_type: VARCHAR(32)
+    +schedule_label: VARCHAR(40)
+    +status: VARCHAR(16)
+    +started_at: DATETIME
+    +completed_at: DATETIME
+    +rows_ingested: INT
+    +error_summary: TEXT
+    }
+}
+
+package "External Services" #FFFACD {
+    class SupabaseDBClient <<external API>> {
+        - api_url : str
+        - api_key : str
+        --
+        + insert(table : str, data : dict) : dict
+        + select(table : str, filters : dict, columns : str) : list[dict]
+        + update(table : str, match : dict, data : dict) : dict
+        + delete(table : str, match : dict) : bool
+        + execute_rpc(function_name : str, params : dict) : any
+        + upsert(table : str, data : dict, on_conflict : str) : dict
+    }
+    class SupabaseAuthClient <<external API>> {
+        - supabase_url : str
+        - supabase_anon_key : str
+        --
+        + sign_up(email : str, password : str) : AuthResponse
+        + sign_in_with_password(email : str, password : str) : AuthResponse
+        + sign_out(access_token : str) : void
+        + get_user(access_token : str) : UserResponse
+        + refresh_session(refresh_token : str) : AuthResponse
+        + reset_password_for_email(email : str) : void
+    }
+    class AIAgentAPI <<external API>> {
+        - api_endpoint : str
+        - api_key : str
+        - model_name : str
+        --
+        + suggest_demographics_for_sector(sector : str) : dict
+        + generate_profile_insights(profile : BusinessProfile) : str
+        + explain_profile_input(field : str, value : any) : str
+        + generate_score_explanation(score_data : dict, profile : BusinessProfile) : str
+        + submit_user_feedback(insight_id : str, feedback : str) : void
+    }
+}
+
+Boundary ..> Control : uses
+Control ..> Entity : manages
+Boundary ..> Enum : uses
+Control ..> Enum : uses
+Control ..> "External Services" : calls
+
+' =========================
+' Relationships (multiplicity)
+' =========================
+' Authentication relationships
+' =========================
+User "1" -- "0..*" AuthSession : has
+User "1" -- "0..*" AuthToken : owns
+AuthSession "0..*" -- "1" User : belongs to
+AuthToken "0..*" -- "1" User : belongs to
+User --> AccountStatus : has status
+User --> UserType : uses
+
+AuthenticationAPI ..> AuthenticationController : <<call>>
+AuthenticationController --> AuthService : uses
+AuthService --> SupabaseAuthClient : <<use>>
+AuthService --> SupabaseDBClient : <<use>>
+AuthService ..> ValidationResult : <<create>>
+AuthService ..> User : <<read/write>>
+AuthService ..> AuthSession : <<read/write>>
+AuthService ..> AuthToken : <<read/write>>
+
+' =========================
+' Existing relationships
+' =========================
+User "1" -- "0..*" BusinessProfile : owns
+User "1" -- "0..*" WeightConfig : creates
+BusinessProfile "1" -- "1" User : owner
+
+BusinessProfile "1" -- "1" WeightConfig : active weights
+BusinessProfile "1" -- "0..*" WeightConfig : can reference presets
+
+BusinessProfile "1" -- "1..*" ProfileTargetAgeGroup : targets
+BusinessProfile "1" -- "1..*" ProfileTargetIncomeBand : targets
+
+PlanningArea "1" -- "0..*" Subzone : contains
+PlanningArea "1" -- "0..*" AreaDemographics : has
+Subzone "0..1" -- "0..*" AreaDemographics : refines
+
+PlanningArea "1" -- "0..*" TransportNode : includes
+PlanningArea "1" -- "0..*" AreaTransportAccess : summarises
+PlanningArea "0..1" -- "0..*" AreaVacancy : vacancy metrics
+
+BusinessProfile "1" -- "0..*" CandidateSite : portfolio
+CandidateSite "0..*" -- "1" PlanningArea : located in
+
+BusinessProfile "1" -- "0..*" SiteScore : computed with
+SiteScore "0..*" -- "1" WeightConfig : uses
+SiteScore "0..*" -- "0..1" PlanningArea : derived area
+
+CandidateSite "0..1" -- "1" SiteScore : saved snapshot
+CandidateSite "1" -- "0..*" SiteNote : has
+
+SiteScore "1" -- "0..*" Explanation : explained by
+Explanation "1" -- "0..*" ExplanationFeedback : rated by
+ExplanationFeedback "0..*" -- "1" User : authored by
+
+User "1" -- "0..*" ComparisonSession : creates
+ComparisonSession "1" -- "2..*" ComparisonItem : contains
+ComparisonItem "0..*" -- "1" CandidateSite : references
+ComparisonSession "1" -- "0..*" ComparisonResult : generates
+ComparisonResult "1" -- "2..*" ResultEntry : contains
+ResultEntry "0..*" -- "1" CandidateSite : references
+
+DataRefreshJob "0..*" -- "0..*" PlanningArea : affects
+
+' =========================
+' Business Profile — additional relationships
+' =========================
+BusinessProfilePage *-- BusinessProfileListView : contains
+BusinessProfilePage *-- BusinessProfileWizard : contains
+BusinessProfilePage ..> BusinessProfileController : <<call>>
+BusinessProfileListView ..> BusinessProfileController : <<call>>
+BusinessProfileWizard ..> BusinessProfileController : <<call>>
+
+BusinessProfileController --> BusinessProfileService : uses
+BusinessProfileController --> AuthService : uses
+
+BusinessProfileService --> SupabaseDBClient : <<use>>
+BusinessProfileService ..> AIAgentAPI : <<call>>
+
+BusinessProfileService ..> ProfileFormData : <<read>>
+BusinessProfileService ..> ValidationResult : <<create>>
+BusinessProfile ..> ValidationResult : creates
+
+BusinessProfile --> BusinessSector : uses
+BusinessProfile --> PriceBand : uses
+BusinessProfile --> AgeGroup : uses
+BusinessProfile --> IncomeBand : uses
+BusinessProfile --> RelianceType : uses
+
+@enduml
