@@ -66,3 +66,14 @@ export const candidateSites = pgTable("candidate_sites", {
   notes: text("notes"),
   savedAt: timestamp("saved_at").defaultNow(),
 });
+
+export const dbInsertCandidateSiteSchema = createInsertSchema(candidateSites).omit({
+  id: true,
+  savedAt: true,
+});
+
+export const dbInsertUserSchema = insertUserSchema;
+
+export type InsertCandidateSiteRow = z.infer<typeof dbInsertCandidateSiteSchema>;
+export type CandidateSiteRow = typeof candidateSites.$inferSelect;
+export type SiteScoreRow = typeof siteScores.$inferSelect;

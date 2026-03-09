@@ -22,7 +22,7 @@ SmartLocate SG is a UI-first prototype for a data-driven business site selection
 - All data is mocked in `client/src/lib/mock-data.ts`.
 - Scores are simulated (not computed from real datasets).
 - Postal search requires Google Geocoding API to be enabled.
-- Backend API routes and persistence are not implemented.
+- The UI still reads sites and profiles from localStorage; the server persistence layer is now scaffolded separately.
 - Map overlays (choropleths, MRT/bus layers) are UI placeholders only.
 
 **Routes**
@@ -54,15 +54,35 @@ Create a `.env` file with:
 VITE_GOOGLE_MAPS_API_KEY=your_key_here
 ```
 
+If you are using Supabase, you have two options for the server connection in [frontend/server/db.ts](frontend/server/db.ts):
+
+1. Export a full `DATABASE_URL` in your shell.
+2. Keep `VITE_SUPABASE_URL` in `.env` and export `SUPABASE_DB_PASSWORD` in your shell. The server will derive the PostgreSQL URL automatically.
+
+PowerShell example:
+```powershell
+$env:SUPABASE_DB_PASSWORD = "your-database-password"
+```
+
+Provision the schema before first run:
+```bash
+cd frontend
+npm install
+npm run db:push
+```
+
+The SQL reference for the same schema is in [database/tables.sql](database/tables.sql). Keep [shared/schema.ts](shared/schema.ts) as the source of truth and use `tables.sql` only for review or manual setup.
+
 Then run:
 ```bash
+cd frontend
 HOST=127.0.0.1 PORT=5173 npm run dev
 ```
 Open `http://127.0.0.1:5173`.
 
 **Planned Work (Next Steps)**
 - Implement real backend API (profiles, scoring, sites).
-- Add database schema + persistence (PostgreSQL / MySQL).
+- Connect the current UI flows to the persisted backend APIs instead of localStorage.
 - Build map overlays (planning areas, MRT/bus layers).
 - Add real scoring pipeline from OneMap, SingStat, LTA, URA datasets.
 - Replace prototype AI explanations with rule-based or LLM-backed logic.
