@@ -16,11 +16,16 @@ for (const envPath of envCandidates) {
 }
 
 function buildSupabaseDatabaseUrl() {
-  const supabaseUrl = process.env.VITE_SUPABASE_URL;
-  const databasePassword = process.env.SUPABASE_DB_PASSWORD;
-  const databaseUser = process.env.SUPABASE_DB_USER || "postgres";
-  const databaseName = process.env.SUPABASE_DB_NAME || "postgres";
-  const databasePort = process.env.SUPABASE_DB_PORT || "5432";
+  const supabaseUrl = process.env.VITE_SUPABASE_URL?.trim();
+  const databasePassword = process.env.SUPABASE_DB_PASSWORD?.trim();
+  const preferredHost = process.env.SUPABASE_DB_HOST?.trim();
+  const poolerHost = process.env.SUPABASE_POOLER_HOST?.trim();
+  const usePooler = process.env.SUPABASE_USE_POOLER?.trim() === "true";
+  const poolerRegion = process.env.SUPABASE_POOLER_REGION?.trim();
+  const databaseName = process.env.SUPABASE_DB_NAME?.trim() || "postgres";
+  const sslMode = process.env.SUPABASE_DB_SSLMODE?.trim() || "require";
+  const allowSelfSigned =
+    process.env.SUPABASE_DB_ALLOW_SELF_SIGNED?.trim() === "true";
 
   if (!supabaseUrl || !databasePassword) {
     return null;
@@ -34,17 +39,67 @@ function buildSupabaseDatabaseUrl() {
       return null;
     }
 
-    return `postgresql://${encodeURIComponent(databaseUser)}:${encodeURIComponent(databasePassword)}@db.${projectRef}.supabase.co:${databasePort}/${databaseName}`;
+    // Legacy logic (kept for rollback/debugging with older team setup):
+    // const databaseUser = process.env.SUPABASE_DB_USER || "postgres";
+    // const databaseName = process.env.SUPABASE_DB_NAME || "postgres";
+    // const databasePort = process.env.SUPABASE_DB_PORT || "5432";
+    // return `postgresql://${encodeURIComponent(databaseUser)}:${encodeURIComponent(databasePassword)}@db.${projectRef}.supabase.co:${databasePort}/${databaseName}`;
+
+    const inferredPoolerHost =
+      usePooler && poolerRegion
+        ? `aws-0-${poolerRegion}.pooler.supabase.com`
+        : null;
+    const resolvedHost =
+      preferredHost || poolerHost || inferredPoolerHost || `db.${projectRef}.supabase.co`;
+    const databaseUser =
+      process.env.SUPABASE_DB_USER?.trim() ||
+      (resolvedHost.includes(".pooler.supabase.com")
+        ? `postgres.${projectRef}`
+        : "postgres");
+    const databasePort =
+      process.env.SUPABASE_DB_PORT?.trim() ||
+      (resolvedHost.includes(".pooler.supabase.com") ? "6543" : "5432");
+
+    const effectiveSslMode = allowSelfSigned ? "no-verify" : sslMode;
+
+    // Legacy SSL mode logic (kept for rollback/debugging):
+    // const effectiveSslMode = sslMode;
+
+    return `postgresql://${encodeURIComponent(databaseUser)}:${encodeURIComponent(databasePassword)}@${resolvedHost}:${databasePort}/${databaseName}?sslmode=${encodeURIComponent(effectiveSslMode)}`;
   } catch {
     return null;
   }
 }
 
-const databaseUrl = process.env.DATABASE_URL || buildSupabaseDatabaseUrl();
+const supabaseOverrideRequested = Boolean(
+  process.env.SUPABASE_DB_HOST ||
+    process.env.SUPABASE_POOLER_HOST ||
+    process.env.SUPABASE_USE_POOLER ||
+    process.env.SUPABASE_POOLER_REGION ||
+    process.env.SUPABASE_DB_USER ||
+    process.env.SUPABASE_DB_PORT ||
+    process.env.SUPABASE_DB_NAME ||
+    process.env.SUPABASE_DB_SSLMODE ||
+    process.env.SUPABASE_DB_ALLOW_SELF_SIGNED,
+);
+
+const derivedDatabaseUrl = buildSupabaseDatabaseUrl();
+
+const databaseUrl =
+  process.env.SUPABASE_DATABASE_URL?.trim() ||
+  (supabaseOverrideRequested ? derivedDatabaseUrl : null) ||
+  process.env.DATABASE_URL?.trim() ||
+  derivedDatabaseUrl;
+
+// Legacy precedence (kept for rollback/debugging):
+// const databaseUrl =
+//   process.env.SUPABASE_DATABASE_URL?.trim() ||
+//   process.env.DATABASE_URL?.trim() ||
+//   buildSupabaseDatabaseUrl();
 
 if (!databaseUrl) {
   throw new Error(
-    "DATABASE_URL is not set. Either export DATABASE_URL or keep VITE_SUPABASE_URL in .env and set SUPABASE_DB_PASSWORD in your terminal.",
+    "No database URL found. Set SUPABASE_DATABASE_URL or DATABASE_URL, or keep VITE_SUPABASE_URL in .env and set SUPABASE_DB_PASSWORD (+ SUPABASE_DB_HOST when needed).",
   );
 }
 

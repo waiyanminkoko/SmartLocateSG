@@ -17,7 +17,11 @@
     "types": ["node", "vite/client"],
     "paths": {
       "@/*": ["./client/src/*"],
-      "@shared/*": ["../shared/*"]
+      "@shared/*": ["../shared/*"],
+      "drizzle-orm": ["./node_modules/drizzle-orm"],
+      "drizzle-orm/*": ["./node_modules/drizzle-orm/*"],
+      "drizzle-zod": ["./node_modules/drizzle-zod"],
+      "zod": ["./node_modules/zod"]
     }
   }
 }

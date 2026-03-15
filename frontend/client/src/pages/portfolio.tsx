@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { mockProfiles, mockSites, CandidateSite } from "@/lib/mock-data";
+import { openChatbot } from "@/lib/chatbot";
 import { useToast } from "@/hooks/use-toast";
 import { useLocalStorageState } from "@/hooks/use-local-storage";
 
@@ -94,6 +95,43 @@ export default function Portfolio() {
     setLocation("/compare");
   };
 
+  const explainWithChatbot = () => {
+    const target =
+      filtered.find((site) => selectedIds.includes(site.id)) ??
+      filtered[0] ??
+      sites[0];
+
+    if (!target) {
+      toast({
+        title: "No site to explain",
+        description: "Save a site from the map first.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    openChatbot({
+      context: {
+        page: "portfolio",
+        title: "Portfolio site explanation",
+        sites: [
+          {
+            id: target.id,
+            name: target.name,
+            address: target.address,
+            composite: target.composite,
+            demographic: target.demographic,
+            accessibility: target.accessibility,
+            rental: target.rental,
+            competition: target.competition,
+          },
+        ],
+      },
+      starterPrompt:
+        "Explain this saved site's score breakdown and suggest whether I should keep, improve, or deprioritize it.",
+    });
+  };
+
   return (
     <AppShell title="Portfolio">
       <div className="space-y-6">
@@ -130,6 +168,9 @@ export default function Portfolio() {
           </div>
           <Button variant="secondary" onClick={compareSelected} data-testid="button-go-compare">
             Compare selected ({selectedIds.length})
+          </Button>
+          <Button variant="outline" onClick={explainWithChatbot} data-testid="button-portfolio-explain-score">
+            Explain score
           </Button>
         </div>
 
