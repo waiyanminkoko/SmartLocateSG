@@ -1,16 +1,18 @@
 import { and, desc, eq } from "drizzle-orm";
-import {
+import * as sharedSchemaModule from "@shared/schema";
+import type { InsertUser, User } from "@shared/schema";
+import { randomUUID } from "crypto";
+import { db } from "./db";
+
+const sharedSchema = ((sharedSchemaModule as { default?: typeof sharedSchemaModule }).default ?? sharedSchemaModule) as typeof sharedSchemaModule;
+const {
   areaDemographics,
   candidateSites,
   dbInsertCandidateSiteSchema,
   dbInsertUserSchema,
   siteScores,
   users,
-  type InsertUser,
-  type User,
-} from "@shared/schema";
-import { randomUUID } from "crypto";
-import { db } from "./db";
+} = sharedSchema;
 
 type CandidateSiteRecord = {
   id: string;

@@ -1,10 +1,12 @@
 import { drizzle } from 'drizzle-orm/node-postgres';
 import pkg from 'pg';
 const { Pool } = pkg;
-import * as schema from '@shared/schema';
+import * as schemaModule from '@shared/schema';
 import * as dotenv from 'dotenv';
 import path from 'path';
 import fs from 'fs';
+
+const schema = ((schemaModule as { default?: typeof schemaModule }).default ?? schemaModule) as typeof schemaModule;
 
 // Load environment variables from either workspace root or parent folder
 const envCandidates = [
