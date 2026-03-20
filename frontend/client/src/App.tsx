@@ -17,6 +17,7 @@ import MapPage from "@/pages/map";
 import Portfolio from "@/pages/portfolio";
 import Compare from "@/pages/compare";
 import Admin from "@/pages/admin";
+import Test from "@/pages/test";
 
 function Router() {
   return (
@@ -31,6 +32,8 @@ function Router() {
       <Route path="/portfolio" component={Portfolio} />
       <Route path="/compare" component={Compare} />
       <Route path="/admin" component={Admin} />
+
+      <Route path="/test" component={Test} />
       <Route component={NotFound} />
     </Switch>
   );

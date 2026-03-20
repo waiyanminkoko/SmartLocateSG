@@ -1,0 +1,8 @@
+{
+  "name": "smartlocatesg",
+  "private": true,
+  "workspaces": ["frontend", "shared"],
+  "scripts": {
+    "dev": "npm run dev -w frontend"
+  }
+}
