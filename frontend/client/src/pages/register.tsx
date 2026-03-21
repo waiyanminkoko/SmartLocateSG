@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/lib/supabaseClient";
 
 type RegisterValues = {
   email: string;
@@ -21,6 +22,7 @@ type RegisterValues = {
 export default function Register() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const [submitting, setSubmitting] = useState(false);
 
   const form = useForm<RegisterValues>({
     defaultValues: {
@@ -33,11 +35,11 @@ export default function Register() {
   });
 
   const passwordRules = useMemo(
-    () => "Use 8+ characters. In the real app, we’d enforce strength rules.",
+    () => "Use 8+ characters.",
     [],
   );
 
-  const onSubmit = form.handleSubmit((values) => {
+  const onSubmit = form.handleSubmit(async (values) => {
     if (values.password !== values.confirmPassword) {
       toast({
         title: "Passwords don’t match",
@@ -56,12 +58,31 @@ export default function Register() {
       return;
     }
 
+    setSubmitting(true);
+    const { error } = await supabase.auth.signUp({
+      email: values.email,
+      password: values.password,
+      options: {
+        data: { user_type: values.userType },
+      },
+    });
+    setSubmitting(false);
+
+    if (error) {
+      toast({
+        title: "Registration failed",
+        description: error.message,
+        variant: "destructive",
+      });
+      return;
+    }
+
     toast({
-      title: "Account created (prototype)",
-      description: "Success! Redirecting to dashboard…",
+      title: "Account created!",
+      description: "Check your email to confirm your account, then log in.",
     });
 
-    setLocation("/dashboard");
+    setLocation("/login");
   });
 
   return (
@@ -169,8 +190,8 @@ export default function Register() {
               </div>
             </div>
 
-            <Button type="submit" className="w-full" data-testid="button-submit-register">
-              Create account
+            <Button type="submit" className="w-full" disabled={submitting} data-testid="button-submit-register">
+              {submitting ? "Creating account…" : "Create account"}
             </Button>
           </form>
 

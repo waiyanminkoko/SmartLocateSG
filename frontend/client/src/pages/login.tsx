@@ -1,11 +1,14 @@
 import { Link, useLocation } from "wouter";
+import { useState } from "react";
 import { useForm } from "react-hook-form";
+import { useAuth } from "@/context/auth-context";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/lib/supabaseClient";
 
 type LoginValues = {
   email: string;
@@ -15,6 +18,8 @@ type LoginValues = {
 export default function Login() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const [submitting, setSubmitting] = useState(false);
+  const { user, loading } = useAuth();
 
   const form = useForm<LoginValues>({
     defaultValues: {
@@ -23,11 +28,28 @@ export default function Login() {
     },
   });
 
-  const onSubmit = form.handleSubmit(() => {
-    toast({
-      title: "Logged in (prototype)",
-      description: "This is a UI-only mock. Redirecting to dashboard…",
+  if (!loading && user) {
+    setLocation("/dashboard");
+    return null;
+  }
+
+  const onSubmit = form.handleSubmit(async (values) => {
+    setSubmitting(true);
+    const { error } = await supabase.auth.signInWithPassword({
+      email: values.email,
+      password: values.password,
     });
+    setSubmitting(false);
+
+    if (error) {
+      toast({
+        title: "Login failed",
+        description: error.message,
+        variant: "destructive",
+      });
+      return;
+    }
+
     setLocation("/dashboard");
   });
 
@@ -88,12 +110,12 @@ export default function Login() {
                 data-testid="input-password"
               />
               <p className="text-xs text-muted-foreground" data-testid="text-login-hint">
-                Tip: any email/password works in this prototype.
+                Use the email and password you registered with.
               </p>
             </div>
 
-            <Button type="submit" className="w-full" data-testid="button-submit-login">
-              Log In
+            <Button type="submit" className="w-full" disabled={submitting} data-testid="button-submit-login">
+              {submitting ? "Logging in…" : "Log In"}
             </Button>
           </form>
 
