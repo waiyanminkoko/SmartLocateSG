@@ -19,6 +19,7 @@ export default function Login() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [submitting, setSubmitting] = useState(false);
+  const [resetting, setResetting] = useState(false);
   const { user, loading } = useAuth();
 
   const form = useForm<LoginValues>({
@@ -90,15 +91,31 @@ export default function Login() {
                   type="button"
                   variant="ghost"
                   className="h-auto px-2 py-1 text-xs"
-                  onClick={() =>
-                    toast({
-                      title: "Forgot password (prototype)",
-                      description: "In a real app, you’d get a reset email.",
-                    })
-                  }
+                  disabled={resetting}
+                  onClick={async () => {
+                    const email = form.getValues("email");
+                    if (!email) {
+                      toast({
+                        title: "Enter your email first",
+                        description: "Fill in your email address above, then click Forgot?",
+                        variant: "destructive",
+                      });
+                      return;
+                    }
+                    setResetting(true);
+                    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+                      redirectTo: `${window.location.origin}/reset-password`,
+                    });
+                    setResetting(false);
+                    if (error) {
+                      toast({ title: "Reset failed", description: error.message, variant: "destructive" });
+                    } else {
+                      toast({ title: "Reset email sent", description: "Check your inbox for a password reset link." });
+                    }
+                  }}
                   data-testid="button-forgot-password"
                 >
-                  Forgot?
+                  {resetting ? "Sending…" : "Forgot?"}
                 </Button>
               </div>
               <Input
