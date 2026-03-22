@@ -1,12 +1,20 @@
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { createClient } from "@supabase/supabase-js";
 import * as sharedSchemaNs from "../../shared/schema";
-import type { InsertUser, User } from "../../shared/schema";
+//import type { InsertUser, User } from "../../shared/schema";
+
 
 const sharedSchema = (
   (sharedSchemaNs as unknown as { default?: typeof import("../../shared/schema") }).default ??
   sharedSchemaNs
 ) as typeof import("../../shared/schema");
+
+import * as sharedSchemaModule from "@shared/schema";
+import type { InsertUser, User } from "@shared/schema";
+import { randomUUID } from "crypto";
+import { db } from "./db";
+
+//const sharedSchema = ((sharedSchemaModule as { default?: typeof sharedSchemaModule }).default ?? sharedSchemaModule) as typeof sharedSchemaModule;
 const {
   areaDemographics,
   businessProfiles,
@@ -45,8 +53,6 @@ const {
 //   type InsertUser,
 //   type User,
 // } from "../../shared/schema";
-import { randomUUID } from "crypto";
-import { db } from "./db";
 
 type CandidateSiteRecord = {
   id: string;

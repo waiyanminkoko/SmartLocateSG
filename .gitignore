@@ -8,3 +8,5 @@ vite.config.ts.*
 .env.*
 .github
 *.txt
+*.pyc
+__pychache__/

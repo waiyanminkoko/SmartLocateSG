@@ -2,20 +2,12 @@ import { drizzle } from 'drizzle-orm/node-postgres';
 import pkg from 'pg';
 const { Pool } = pkg;
 import * as sharedSchemaNs from '../../shared/schema';
+import * as schemaModule from '@shared/schema';
 import * as dotenv from 'dotenv';
 import path from 'path';
 import fs from 'fs';
 
-const schema = (
-  (sharedSchemaNs as unknown as { default?: typeof import('../../shared/schema') }).default ??
-  sharedSchemaNs
-) as typeof import('../../shared/schema');
-
-// Legacy alias import (kept for rollback/debugging):
-// import * as schema from '@shared/schema';
-
-// Legacy direct relative namespace import (kept for rollback/debugging):
-// import * as schema from '../../shared/schema';
+const schema = ((schemaModule as { default?: typeof schemaModule }).default ?? schemaModule) as typeof schemaModule;
 
 // Load environment variables from either workspace root or parent folder
 const envCandidates = [

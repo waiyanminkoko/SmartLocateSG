@@ -4,6 +4,7 @@ import {
   BarChart3,
   Layers,
   LayoutGrid,
+  LogOut,
   Map,
   MapPinned,
   ShieldCheck,
@@ -14,6 +15,14 @@ import {
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { useAuth } from "@/context/auth-context";
 
 const nav = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutGrid },
@@ -34,6 +43,7 @@ export function AppShell({
   children: ReactNode;
 }) {
   const [location] = useLocation();
+  const { user, signOut } = useAuth();
 
   return (
     <div className="app-shell">
@@ -88,10 +98,22 @@ export function AppShell({
 
             {right}
 
-            <Button variant="ghost" size="sm" className="gap-2" data-testid="button-user-menu">
-              <LayoutGrid className="h-4 w-4" aria-hidden="true" />
-              Trial@gmail.com
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" className="gap-2 max-w-[180px] truncate" data-testid="button-user-menu">
+                  <LayoutGrid className="h-4 w-4 shrink-0" aria-hidden="true" />
+                  <span className="truncate">{user?.email ?? "Account"}</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <div className="px-2 py-1.5 text-xs text-muted-foreground">{user?.email}</div>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={signOut} data-testid="button-sign-out">
+                  <LogOut className="mr-2 h-4 w-4" aria-hidden="true" />
+                  Sign out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
 

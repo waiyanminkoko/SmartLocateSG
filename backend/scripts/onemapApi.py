@@ -3,18 +3,30 @@ import requests
 import json
 from typing import Optional
 from dotenv import load_dotenv
+from supabase import create_client, Client
 
 load_dotenv()
+
+# Initialise Supabase
+SUPABASE_URL = os.environ.get("VITE_SUPABASE_URL")
+SUPABASE_KEY = os.environ.get("VITE_SUPABASE_ANON_KEY")
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 AUTH_URL = "https://www.onemap.gov.sg/api/auth/post/getToken"
 ECONOMIC_STATUS_URL = "https://www.onemap.gov.sg/api/public/popapi/getEconomicStatus"
 PLANNING_AREAS_URL = "https://www.onemap.gov.sg/api/public/popapi/getPlanningAreas"
 PLANNING_AREA_BY_POINT_URL = "https://www.onemap.gov.sg/api/public/popapi/getPlanningarea"
+PLANNING_AREA_POLYGON_URL = "https://www.onemap.gov.sg/api/public/popapi/getAllPlanningarea"
+PLANNING_AREA_NAMES_URL = "https://www.onemap.gov.sg/api/public/popapi/getPlanningareaNames?year=2019"
 HOUSEHOLD_MONTHLY_INCOME_URL = "https://www.onemap.gov.sg/api/public/popapi/getHouseholdMonthlyIncomeWork"
 HOUSEHOLD_SIZE_URL = "https://www.onemap.gov.sg/api/public/popapi/getHouseholdSize"
 INCOME_FROM_WORK_URL = "https://www.onemap.gov.sg/api/public/popapi/getIncomeFromWork"
 POPULATION_AGE_GROUP_URL = "https://www.onemap.gov.sg/api/public/popapi/getPopulationAgeGroup"
 HOUSEHOLD_STRUCTURE_URL = "https://www.onemap.gov.sg/api/public/popapi/getHouseholdStructure"
+
+
+_PLANNING_AREAS_CACHE = None 
+
 
 def _clean_env_value(key: str) -> str:
     value = os.environ.get(key, "")
@@ -262,15 +274,277 @@ def get_household_structure(planning_area: str, year: str):
     return response.json()
 
 
+def get_planning_area_names():
+    print(f"Fetching planning area names from OneMap API...")
+    
+    global _PLANNING_AREAS_CACHE
+    if _PLANNING_AREAS_CACHE is not None:
+        return _PLANNING_AREAS_CACHE
+    
+    token = get_onemap_access_token()
+    headers = {"Authorization": f"Bearer {token}"}
+    
+    try:
+        response = requests.get(PLANNING_AREA_NAMES_URL, headers=headers, timeout=10)
+        _raise_with_onemap_error(response, "getPlanningAreaNames")
+
+        data = response.json()
+        # Extract names
+        planning_areas = [item["pln_area_n"] for item in data.get("SearchResults", [])]
+        
+        _PLANNING_AREAS_CACHE = planning_areas
+        return planning_areas
+
+    except Exception as e:
+        print(f"Error fetching planning area names: {e}")
+        return []
+
+
+def save_planning_area_polygon():
+    token = get_onemap_access_token()
+    headers = {"Authorization": f"Bearer {token}"}
+
+    response = requests.get(PLANNING_AREA_POLYGON_URL, headers=headers)
+    data = response.json()
+
+    rows = []
+
+    for area in data["SearchResults"]:
+        
+        geojson_obj = json.loads(area["geojson"])   
+
+        rows.append({
+            "planning_area": area["pln_area_n"],
+            "geojson": geojson_obj
+        })
+
+    supabase.table("onemap_planning_area").upsert(rows, on_conflict="planning_area").execute()
+    
+    
+def save_population_economic_status():
+    token = get_onemap_access_token()
+    
+    planning_areas = get_planning_area_names()
+    for area in planning_areas:
+        params = {"planningArea": area, "year": "2020"}
+        headers = {"Authorization": f"Bearer {token}"}
+        print(f"Fetching economic status for {area}...")
+        r = requests.get(ECONOMIC_STATUS_URL, params=params, headers=headers, timeout=10)
+        if r.status_code != 200:
+            print(f"Skipping {area}: API Error")
+            continue
+        
+        raw_data = r.json()
+        merged_data = merge_economic_status(raw_data)
+        
+        if merged_data:
+            try:
+                result = supabase.table("onemap_economic_status").upsert(
+                    merged_data, on_conflict="planning_area,year").execute()
+                print(f"Successfully saved data for {area}")
+            except Exception as e:
+                print(f"Error saving {area} to Supabase: {e}")
+
+
+def merge_economic_status(data):
+    """Merge genders for economic status data"""
+    
+    if not data:
+        return None
+    
+    raw_year = data[0].get("year")
+    try:
+        year_int = int(raw_year)
+    except (ValueError, TypeError):
+        year_int = 0
+    
+    merged = {
+        "year": year_int,
+        "planning_area": data[0]["planning_area"],
+        "employed": 0,
+        "inactive": 0,
+        "unemployed": 0
+    }
+
+    for entry in data:
+        merged["employed"] += entry.get("employed", 0)
+        merged["inactive"] += entry.get("inactive", 0)
+        merged["unemployed"] += entry.get("unemployed", 0)
+        
+    return merged
+
+
+def save_household_income():
+    token = get_onemap_access_token()
+    
+    planning_areas = get_planning_area_names()
+    for area in planning_areas:
+        print(f"Fetching household income for {area}...")
+        
+        params = {"planningArea": area, "year": "2020"}
+        headers = {"Authorization": f"Bearer {token}"}
+        r = requests.get(HOUSEHOLD_MONTHLY_INCOME_URL, params=params, headers=headers, timeout=10)
+        if r.status_code != 200:
+            print(f"Skipping {area}: API Error")
+            continue
+        
+        raw_data = r.json()
+        
+        try:
+            supabase.table("onemap_household_income").upsert(
+                raw_data, on_conflict="year,planning_area"
+            ).execute()
+            print(f"Saved household income for {area}")
+        except Exception as e:
+            print(f"Error saving {area} to Supabase: {e}")
+    
+    
+def save_household_size():
+    token = get_onemap_access_token()
+    
+    planning_areas = get_planning_area_names()
+    for area in planning_areas:
+        print(f"Fetching household size for {area}...")
+        
+        params = {"planningArea": area, "year": "2020"}
+        headers = {"Authorization": f"Bearer {token}"}
+        r = requests.get(HOUSEHOLD_SIZE_URL, params=params, headers=headers, timeout=10)
+        if r.status_code != 200:
+            print(f"Skipping {area}: API Error")
+            continue
+        
+        raw_data = r.json()
+        
+        try:
+            supabase.table("onemap_household_size").upsert(
+                raw_data, on_conflict="year,planning_area"
+            ).execute()
+            print(f"Saved household size for {area}")
+        except Exception as e:
+            print(f"Error saving {area} to Supabase: {e}")
+    
+    
+def save_work_income():
+    token = get_onemap_access_token()
+    
+    planning_areas = get_planning_area_names()
+    for area in planning_areas:
+        print(f"Fetching work income for {area}...")
+        
+        params = {"planningArea": area, "year": "2020"}
+        headers = {"Authorization": f"Bearer {token}"}
+        r = requests.get(INCOME_FROM_WORK_URL, params=params, headers=headers, timeout=10)
+        if r.status_code != 200:
+            print(f"Skipping {area}: API Error")
+            continue
+        
+        raw_data = r.json()
+        
+        try:
+            supabase.table("onemap_work_income").upsert(
+                raw_data, on_conflict="year,planning_area"
+            ).execute()
+            print(f"Saved work income for {area}")
+        except Exception as e:
+            print(f"Error saving {area} to Supabase: {e}")
+
+
+def save_population_age_group():
+    token = get_onemap_access_token()
+    
+    planning_areas = get_planning_area_names()
+    for area in planning_areas:
+        print(f"Fetching population age group for {area}...")
+        
+        params = {"planningArea": area, "year": "2020"}
+        headers = {"Authorization": f"Bearer {token}"}
+        r = requests.get(POPULATION_AGE_GROUP_URL, params=params, headers=headers, timeout=10)
+        if r.status_code != 200:
+            print(f"Skipping {area}: API Error")
+            continue
+        
+        raw_data = r.json()
+        total_data = [entry for entry in raw_data if entry.get("gender") == "Total"]
+        if not total_data:
+            print(f"No total row for {area}, skipping")
+            continue
+        
+        entry = total_data[0]  # Should be only one row
+        row = {
+            "year": entry["year"],
+            "planning_area": entry["planning_area"],
+            "total": entry["total"],
+            "age_0_4": entry.get("age_0_4", 0),
+            "age_5_9": entry.get("age_5_9", 0),
+            "age_10_14": entry.get("age_10_14", 0),
+            "age_15_19": entry.get("age_15_19", 0),
+            "age_20_24": entry.get("age_20_24", 0),
+            "age_25_29": entry.get("age_25_29", 0),
+            "age_30_34": entry.get("age_30_34", 0),
+            "age_35_39": entry.get("age_35_39", 0),
+            "age_40_44": entry.get("age_40_44", 0),
+            "age_45_49": entry.get("age_45_49", 0),
+            "age_50_54": entry.get("age_50_54", 0),
+            "age_55_59": entry.get("age_55_59", 0),
+            "age_60_64": entry.get("age_60_64", 0),
+            "age_65_69": entry.get("age_65_69", 0),
+            "age_70_74": entry.get("age_70_74", 0),
+            "age_75_79": entry.get("age_75_79", 0),
+            "age_80_84": entry.get("age_80_84", 0),
+            "age_85_over": entry.get("age_85_over", 0)
+        }
+        
+        try:
+            supabase.table("onemap_age_group").upsert(
+                row, on_conflict="year,planning_area"
+            ).execute()
+            print(f"Saved total age group for {area}")
+        except Exception as e:
+            print(f"Error saving {area} to Supabase: {e}")
+            
+            
+def save_household_structure():
+    token = get_onemap_access_token()
+    
+    planning_areas = get_planning_area_names()
+    for area in planning_areas:
+        print(f"Fetching household structure for {area}...")
+        
+        params = {"planningArea": area, "year": "2020"}
+        headers = {"Authorization": f"Bearer {token}"}
+        r = requests.get(HOUSEHOLD_STRUCTURE_URL, params=params, headers=headers, timeout=10)
+        if r.status_code != 200:
+            print(f"Skipping {area}: API Error")
+            continue
+        
+        raw_data = r.json()
+        
+        try:
+            supabase.table("onemap_household_structure").upsert(
+                raw_data, on_conflict="year,planning_area"
+            ).execute()
+            print(f"Saved household structure for {area}")
+        except Exception as e:
+            print(f"Error saving {area} to Supabase: {e}")
+            
+
 if __name__ == "__main__":
     test_onemap_auth()
     
     # Test retrieving the API requests mentioned
     try:
-        get_population_age_group("Bedok", "2020", "female")
-        get_household_monthly_income_work("Bedok", "2020")
-        get_household_size("Bedok", "2020")
-        get_household_structure("Bedok", "2020")
-        get_planning_area("1.3", "103.8")
+        # save_planning_area_polygon()
+        # save_population_economic_status()
+        # save_household_income()
+        # save_household_size()
+        # save_work_income()
+        # save_population_age_group()
+        save_household_structure()
+        
+        # get_population_age_group("Bedok", "2020", "female")
+        # get_household_monthly_income_work("Bedok", "2020")
+        # get_household_size("Bedok", "2020")
+        # get_household_structure("Bedok", "2020")
+        # get_planning_area("1.3", "103.8")
     except Exception as e:
         print(f"Test failed: {e}")
