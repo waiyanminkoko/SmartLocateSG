@@ -50,12 +50,27 @@ export const siteScores = pgTable("site_scores", {
   competitionScore: decimal("competition_score", { precision: 6, scale: 2 }),
   computedAt: timestamp("computed_at").defaultNow(),
   breakdownDetailsJson: jsonb("breakdown_details_json"),
+  notes: text("notes").default(""),
+});
+
+export const businessProfiles = pgTable("business_profiles", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  businessName: varchar("business_name", { length: 120 }).notNull(),
+  sector: varchar("sector", { length: 80 }).notNull(),
+  priceBand: varchar("price_band", { length: 40 }).notNull(),
+  targetAgeGroupsJson: jsonb("target_age_groups_json").$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+  targetIncomeBandsJson: jsonb("target_income_bands_json").$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+  operatingModel: varchar("operating_model", { length: 40 }).notNull(),
+  isActive: integer("is_active").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
 });
 
 export const candidateSites = pgTable("candidate_sites", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").references(() => users.id), // Using existing users table
-  profileId: varchar("profile_id"), // Referencing business profiles (mocked/future)
+  profileId: varchar("profile_id").references(() => businessProfiles.id),
   siteName: varchar("site_name", { length: 80 }).notNull(),
   addressLabel: varchar("address_label", { length: 160 }),
   postalCode: varchar("postal_code", { length: 16 }),
@@ -72,8 +87,16 @@ export const dbInsertCandidateSiteSchema = createInsertSchema(candidateSites).om
   savedAt: true,
 });
 
+export const dbInsertBusinessProfileSchema = createInsertSchema(businessProfiles).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 export const dbInsertUserSchema = insertUserSchema;
 
 export type InsertCandidateSiteRow = z.infer<typeof dbInsertCandidateSiteSchema>;
+export type InsertBusinessProfileRow = z.infer<typeof dbInsertBusinessProfileSchema>;
 export type CandidateSiteRow = typeof candidateSites.$inferSelect;
 export type SiteScoreRow = typeof siteScores.$inferSelect;
+export type BusinessProfileRow = typeof businessProfiles.$inferSelect;

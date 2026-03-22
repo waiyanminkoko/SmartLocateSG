@@ -6,24 +6,26 @@ import {
   SlidersHorizontal,
   Sparkles,
   SquarePlus,
-  ThumbsDown,
-  ThumbsUp,
   RotateCcw,
 } from "lucide-react";
 import { Loader } from "@googlemaps/js-api-loader";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 import { AppShell } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Slider } from "@/components/ui/slider";
 import { Progress } from "@/components/ui/progress";
+import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { useLocalStorageState } from "@/hooks/use-local-storage";
-import { mockProfiles, mockSites } from "@/lib/mock-data";
+import { openChatbot } from "@/lib/chatbot";
+import { mockProfiles, mockSites, type BusinessProfile } from "@/lib/mock-data";
+import { getAppUserId } from "@/lib/app-user";
 
 type Overlay = "Composite" | "Demographics" | "Accessibility" | "Vacancy";
 
@@ -87,6 +89,7 @@ function normalize(w: Weights): Weights {
 
 export default function MapPage() {
   const { toast } = useToast();
+  const userId = useMemo(() => getAppUserId(), []);
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<any | null>(null);
   const markerRef = useRef<any | null>(null);
@@ -108,11 +111,21 @@ export default function MapPage() {
   } | null>(null);
   const [mapReady, setMapReady] = useState(false);
 
-  const [profiles, setProfiles] = useLocalStorageState("smartlocate:profiles", mockProfiles);
+  const [profiles, setProfiles] = useLocalStorageState<BusinessProfile[]>("smartlocate:profiles", []);
   const [, setSites] = useLocalStorageState("smartlocate:sites", mockSites);
   const [activeProfileId, setActiveProfileId] = useState<string>("");
   const [scenario, setScenario] = useState<string>("Normal");
   const [overlay, setOverlay] = useState<Overlay>("Composite");
+  const [explanationLoading, setExplanationLoading] = useState(false);
+  const [explanationSummary, setExplanationSummary] = useState<string>("");
+  const [serverExplanationItems, setServerExplanationItems] = useState<
+    Array<{ label: string; score: number; detail: string }>
+  >([]);
+  const [detailedBreakdownText, setDetailedBreakdownText] = useState<string>("");
+  const [isBreakdownSheetOpen, setIsBreakdownSheetOpen] = useState(false);
+  const [isBreakdownEditMode, setIsBreakdownEditMode] = useState(false);
+  const [isNotesSheetOpen, setIsNotesSheetOpen] = useState(false);
+  const [scoreNotes, setScoreNotes] = useState("");
 
   const [weights, setWeights] = useState<Weights>(() => presets.Normal);
 
@@ -128,7 +141,7 @@ export default function MapPage() {
 
   const composite = scores.composite;
 
-  const explanationItems = useMemo(() => {
+  const fallbackExplanationItems = useMemo(() => {
     const demographicDetail =
       scores.demographic >= 75
         ? "Strong overlap with target age groups and mid-income households."
@@ -181,6 +194,79 @@ export default function MapPage() {
     ];
   }, [scores]);
 
+  const displayedExplanationItems =
+    serverExplanationItems.length > 0 ? serverExplanationItems : fallbackExplanationItems;
+
+  const quickRecommendations = useMemo(
+    () => [...displayedExplanationItems].sort((a, b) => a.score - b.score).slice(0, 2),
+    [displayedExplanationItems],
+  );
+
+  const selectedLocationText = useMemo(() => {
+    if (selectedAddress) {
+      return selectedAddress;
+    }
+    if (selectedLatLng) {
+      return `Lat ${selectedLatLng.lat.toFixed(5)}, ${selectedLatLng.lng.toFixed(5)}`;
+    }
+    return "No location selected yet.";
+  }, [selectedAddress, selectedLatLng]);
+
+  const shortBreakdownPreview = useMemo(() => {
+    if (!detailedBreakdownText) {
+      return "Click Generate to create a detailed AI breakdown for this location.";
+    }
+
+    const compact = detailedBreakdownText
+      .replace(/[#*_`>-]/g, "")
+      .replace(/\n+/g, " ")
+      .trim();
+
+    return compact.length > 220 ? `${compact.slice(0, 220)}...` : compact;
+  }, [detailedBreakdownText]);
+
+  const isAnySidePanelOpen = isBreakdownSheetOpen || isNotesSheetOpen;
+
+  /*
+  Legacy static explanation source (pre `/api/explain-score` integration)
+  const explanationItems = useMemo(() => {
+    const demographicDetail =
+      scores.demographic >= 75
+        ? "Strong overlap with target age groups and mid-income households."
+        : scores.demographic >= 60
+          ? "Moderate overlap with target demographics; consider niche positioning."
+          : "Lower match to target demographics; consider alternative areas.";
+
+    const accessibilityDetail =
+      scores.accessibility >= 80
+        ? "Transit access is strong with multiple MRT/bus options nearby."
+        : scores.accessibility >= 65
+          ? "Reasonable transit access with some gaps during off-peak hours."
+          : "Transit access is limited; expect lower walk-in traffic.";
+
+    const rentalDetail =
+      scores.rental >= 75
+        ? "Rental pressure is low, indicating more availability."
+        : scores.rental >= 60
+          ? "Rental pressure is moderate; balance cost against demand."
+          : "Rental pressure is high; expect higher leasing costs.";
+
+    const competitionDetail =
+      scores.competition >= 75
+        ? "Competition density is manageable with room for differentiation."
+        : scores.competition >= 60
+          ? "Competition is moderate; watch pricing and positioning."
+          : "Competition is intense; differentiation is critical.";
+
+    return [
+      { label: "Demographic match", score: scores.demographic, detail: demographicDetail },
+      { label: "Accessibility", score: scores.accessibility, detail: accessibilityDetail },
+      { label: "Rental pressure", score: scores.rental, detail: rentalDetail },
+      { label: "Competition density", score: scores.competition, detail: competitionDetail },
+    ];
+  }, [scores]);
+  */
+
   const setPin = (latlng: any) => {
     const googleMaps = googleRef.current;
     if (!mapRef.current || !googleMaps) return;
@@ -194,9 +280,29 @@ export default function MapPage() {
     });
   };
 
-  const handleProfileChange = (id: string) => {
+  const handleProfileChange = async (id: string) => {
     setActiveProfileId(id);
     setProfiles((prev) => prev.map((p) => ({ ...p, active: p.id === id })));
+
+    try {
+      const response = await fetch(`/api/profiles/${encodeURIComponent(id)}/activate`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ userId }),
+      });
+
+      if (!response.ok) {
+        throw new Error("failed");
+      }
+    } catch {
+      toast({
+        title: "Failed to update active profile",
+        description: "Using local profile state for now.",
+        variant: "destructive",
+      });
+    }
   };
 
   const formatLatLng = (lat: number, lng: number) =>
@@ -349,11 +455,273 @@ export default function MapPage() {
       profileId: activeProfile.id,
       lat: selectedLatLng.lat,
       lng: selectedLatLng.lng,
+      notes: scoreNotes,
     };
 
-    setSites((prev) => [newSite, ...prev]);
-    toast({ title: "Saved to portfolio", description: "Site added to your list." });
+    const breakdownPayload = {
+      markdown: detailedBreakdownText || null,
+      summary:
+        explanationSummary ||
+        `Composite score is ${composite}. Scores update dynamically based on scenario weights and selected location.`,
+      items: displayedExplanationItems,
+      location: {
+        address: selectedAddress ?? undefined,
+        lat: selectedLatLng.lat,
+        lng: selectedLatLng.lng,
+      },
+      scores,
+      profile: activeProfile
+        ? {
+            id: activeProfile.id,
+            name: activeProfile.name,
+            sector: activeProfile.sector,
+            priceBand: activeProfile.priceBand,
+          }
+        : null,
+      generatedAt: new Date().toISOString(),
+    };
+
+    void (async () => {
+      try {
+        const response = await fetch("/api/sites", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            userId,
+            profileId: activeProfile.id,
+            name: newSite.name,
+            address: newSite.address,
+            lat: newSite.lat,
+            lng: newSite.lng,
+            composite: newSite.composite,
+            demographic: newSite.demographic,
+            accessibility: newSite.accessibility,
+            rental: newSite.rental,
+            competition: newSite.competition,
+            notes: scoreNotes,
+            scoreNotes,
+            breakdownDetailsJson: breakdownPayload,
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error("failed");
+        }
+      } catch {
+        toast({
+          title: "Server sync unavailable",
+          description: "Saved in local state for now. Database sync can be retried later.",
+          variant: "destructive",
+        });
+      } finally {
+        setSites((prev) => [newSite, ...prev]);
+        toast({ title: "Saved to portfolio", description: "Site added to your list." });
+      }
+    })();
   };
+
+  const buildDetailedBreakdownMarkdown = (
+    summary: string,
+    items: Array<{ label: string; score: number; detail: string }>,
+  ) => {
+    const locationLine = selectedAddress
+      ? selectedAddress
+      : selectedLatLng
+        ? `Lat ${formatLatLng(selectedLatLng.lat, selectedLatLng.lng)}`
+        : "No location selected";
+
+    const lines = [
+      "# Detailed Score Breakdown",
+      "",
+      `- **Location:** ${locationLine}`,
+      `- **Composite Score:** ${composite}`,
+      `- **Scenario:** ${scenario}`,
+      activeProfile
+        ? `- **Active Profile:** ${activeProfile.name} (${activeProfile.sector})`
+        : "- **Active Profile:** Not selected",
+      "",
+      "## Summary",
+      summary,
+      "",
+      "## Dimension Details",
+      ...items.flatMap((item) => [
+        `### ${item.label} (${item.score}/100)`,
+        item.detail,
+        "",
+      ]),
+      "## Recommended Next Actions",
+      ...quickRecommendations.map((item, index) => `${index + 1}. Improve ${item.label.toLowerCase()}: ${item.detail}`),
+    ];
+
+    return lines.join("\n").trim();
+  };
+
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    document.body.classList.toggle("map-sidepanel-open", isAnySidePanelOpen);
+
+    return () => {
+      document.body.classList.remove("map-sidepanel-open");
+    };
+  }, [isAnySidePanelOpen]);
+
+  const generateDetailedBreakdown = async () => {
+    const result = await requestExplanation();
+
+    const summary =
+      result?.summary ||
+      explanationSummary ||
+      `Composite score is ${composite}. Scores update dynamically based on scenario weights and selected location.`;
+    const items = result?.items ?? displayedExplanationItems;
+    const markdown = buildDetailedBreakdownMarkdown(summary, items);
+    setDetailedBreakdownText(markdown);
+  };
+
+  const requestExplanation = async () => {
+    setExplanationLoading(true);
+    setServerExplanationItems([]);
+
+    try {
+      const response = await fetch("/api/explain-score", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          profile: activeProfile
+            ? {
+                name: activeProfile.name,
+                sector: activeProfile.sector,
+                priceBand: activeProfile.priceBand,
+                ageGroups: activeProfile.ageGroups,
+                incomeBands: activeProfile.incomeBands,
+                operatingModel: activeProfile.operatingModel,
+              }
+            : undefined,
+          location: {
+            address: selectedAddress ?? undefined,
+            lat: selectedLatLng?.lat,
+            lng: selectedLatLng?.lng,
+          },
+          scores,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("failed");
+      }
+
+      const data = (await response.json()) as {
+        summary?: string;
+        items?: Array<{ label: string; score: number; detail: string }>;
+      };
+
+      const resolvedSummary =
+        data.summary ??
+        `Composite score is ${composite}. Scores update dynamically based on scenario weights and selected location.`;
+      const resolvedItems = Array.isArray(data.items) ? data.items : fallbackExplanationItems;
+
+      setExplanationSummary(resolvedSummary);
+      setServerExplanationItems(resolvedItems);
+
+      return {
+        summary: resolvedSummary,
+        items: resolvedItems,
+      };
+    } catch {
+      const fallbackSummary =
+        `Composite score is ${composite}. Showing fallback explanation because the AI endpoint is unavailable.`;
+
+      setExplanationSummary(fallbackSummary);
+      setServerExplanationItems(fallbackExplanationItems);
+
+      return {
+        summary: fallbackSummary,
+        items: fallbackExplanationItems,
+      };
+    } finally {
+      setExplanationLoading(false);
+    }
+  };
+
+  /*
+  Legacy dialog behavior: no API request, always static explanation
+  <Dialog>
+    <DialogTrigger asChild>
+      <Button variant="secondary" className="justify-between" data-testid="button-explain-score">
+        <span className="inline-flex items-center gap-2">
+          <Sparkles className="h-4 w-4" aria-hidden="true" /> Explain score
+        </span>
+        <span className="text-muted-foreground">↵</span>
+      </Button>
+    </DialogTrigger>
+  </Dialog>
+  */
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const fetchProfiles = async () => {
+      try {
+        const response = await fetch(`/api/profiles?userId=${encodeURIComponent(userId)}`);
+        if (!response.ok) {
+          throw new Error("failed");
+        }
+
+        const rows = (await response.json()) as Array<{
+          id: string;
+          name: string;
+          sector: string;
+          priceBand: string;
+          ageGroups: string[];
+          incomeBands: string[];
+          operatingModel: string;
+          active: boolean;
+          updatedAt: string;
+        }>;
+
+        const mapped: BusinessProfile[] = rows.map((row) => ({
+          id: row.id,
+          name: row.name,
+          sector: row.sector,
+          priceBand: row.priceBand,
+          ageGroups: row.ageGroups,
+          incomeBands: row.incomeBands,
+          operatingModel: row.operatingModel,
+          active: row.active,
+          updatedAt: new Date(row.updatedAt).toLocaleDateString("en-US", {
+            month: "short",
+            day: "numeric",
+            year: "numeric",
+          }),
+        }));
+
+        if (!cancelled) {
+          setProfiles(mapped);
+        }
+      } catch {
+        if (!cancelled && profiles.length === 0) {
+          setProfiles(mockProfiles);
+        }
+      }
+    };
+
+    fetchProfiles();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [profiles.length, setProfiles, userId]);
+
+  /*
+  Legacy local-only active profile init behavior
+  useEffect(() => {
+    const active = profiles.find((p) => p.active)?.id ?? "";
+    setActiveProfileId(active);
+  }, [profiles]);
+  */
 
   useEffect(() => {
     const active = profiles.find((p) => p.active)?.id ?? "";
@@ -491,7 +859,12 @@ export default function MapPage() {
 
   return (
     <AppShell title="Map">
-      <div className="grid gap-3 lg:grid-cols-[360px_minmax(0,1fr)_360px] xl:grid-cols-[380px_minmax(0,1fr)_380px]">
+      <div
+        className={`map-page-grid-wrap transition-[padding-right] duration-200 ${
+          isAnySidePanelOpen ? "is-sidepanel-open" : ""
+        }`}
+      >
+        <div className="grid gap-3 lg:grid-cols-[360px_minmax(0,1fr)_360px] xl:grid-cols-[380px_minmax(0,1fr)_380px]">
         <Card className="border bg-card p-4 shadow-sm lg:sticky lg:top-24 lg:h-fit">
           <div className="space-y-4">
             <div>
@@ -815,7 +1188,7 @@ export default function MapPage() {
                   Composite score + dimensions with plain-language explanation.
                 </div>
                 <div className="mt-2 text-xs text-muted-foreground" data-testid="text-selected-location">
-                  {selectedAddress ? `Selected: ${selectedAddress}` : "No location selected yet."}
+                  Selected: {selectedLocationText}
                 </div>
               </div>
               <div className="text-2xl font-semibold tracking-tight" data-testid="text-composite-score">{composite}</div>
@@ -842,72 +1215,87 @@ export default function MapPage() {
               ))}
             </div>
 
-            <div className="grid gap-2">
-              <Dialog>
-                <DialogTrigger asChild>
+            <div className="rounded-xl border bg-card p-3" data-testid="card-map-detailed-breakdown">
+              <div className="flex items-center justify-between gap-2">
+                <div className="text-xs font-semibold">Detailed Score Breakdown</div>
+                <div className="flex items-center gap-2">
                   <Button
-                    variant="secondary"
-                    className="justify-between"
-                    data-testid="button-explain-score"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      void generateDetailedBreakdown();
+                    }}
+                    data-testid="button-generate-detailed-breakdown"
                   >
-                    <span className="inline-flex items-center gap-2">
-                      <Sparkles className="h-4 w-4" aria-hidden="true" /> Explain score
-                    </span>
-                    <span className="text-muted-foreground">↵</span>
+                    {explanationLoading ? "Generating..." : "Generate"}
                   </Button>
-                </DialogTrigger>
-                <DialogContent className="sm:max-w-2xl">
-                  <DialogHeader>
-                    <DialogTitle>Score explanation</DialogTitle>
-                  </DialogHeader>
-                  <div className="space-y-4 text-sm">
-                    <div className="rounded-xl border bg-muted/30 p-4">
-                      Composite score is {composite}. Scores update dynamically based on your scenario weights
-                      and the selected location.
-                    </div>
-
-                    <div className="grid gap-3">
-                      {explanationItems.map((item) => (
-                        <div key={item.label} className="rounded-xl border bg-card p-4">
-                          <div className="flex items-center justify-between">
-                            <div className="font-semibold">{item.label}</div>
-                            <div className="text-lg font-semibold">{item.score}</div>
-                          </div>
-                          <div className="mt-2 text-xs text-muted-foreground">{item.detail}</div>
-                        </div>
-                      ))}
-                    </div>
-
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div className="text-xs text-muted-foreground">
-                        Was this explanation helpful?
-                      </div>
-                      <div className="flex gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="gap-2"
-                          onClick={() => toast({ title: "Thanks!", description: "Feedback saved." })}
-                          data-testid="button-feedback-up"
-                        >
-                          <ThumbsUp className="h-4 w-4" aria-hidden="true" />
-                          Helpful
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="gap-2"
-                          onClick={() => toast({ title: "Noted", description: "We will refine the explanation." })}
-                          data-testid="button-feedback-down"
-                        >
-                          <ThumbsDown className="h-4 w-4" aria-hidden="true" />
-                          Not really
-                        </Button>
-                      </div>
-                    </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setIsBreakdownSheetOpen(true)}
+                    disabled={!detailedBreakdownText}
+                    data-testid="button-see-more-breakdown"
+                  >
+                    See More
+                  </Button>
+                </div>
+              </div>
+              <div className="mt-2 text-xs text-muted-foreground" data-testid="text-map-detailed-breakdown-preview">
+                {shortBreakdownPreview}
+              </div>
+              <div className="mt-3 space-y-2">
+                {quickRecommendations.map((item) => (
+                  <div key={item.label} className="rounded-lg bg-muted/40 px-2 py-1 text-xs">
+                    <span className="font-medium">{item.label}:</span> {item.detail}
                   </div>
-                </DialogContent>
-              </Dialog>
+                ))}
+              </div>
+            </div>
+
+            <div className="grid gap-2">
+              <Button
+                variant="secondary"
+                className="justify-between"
+                data-testid="button-explain-score"
+                onClick={() => {
+                  void requestExplanation();
+                  openChatbot({
+                    context: {
+                      page: "map",
+                      title: "Map score explanation",
+                      profile: activeProfile
+                        ? {
+                            name: activeProfile.name,
+                            sector: activeProfile.sector,
+                            priceBand: activeProfile.priceBand,
+                          }
+                        : undefined,
+                      location: {
+                        address: selectedAddress ?? undefined,
+                        lat: selectedLatLng?.lat,
+                        lng: selectedLatLng?.lng,
+                      },
+                      scores,
+                    },
+                    starterPrompt:
+                      "Explain this location score and suggest two concrete actions to improve the weakest dimensions.",
+                  });
+                }}
+              >
+                <span className="inline-flex items-center gap-2">
+                  <Sparkles className="h-4 w-4" aria-hidden="true" /> Explain score
+                </span>
+                <span className="text-muted-foreground">↵</span>
+              </Button>
+              <Button
+                variant="outline"
+                className="justify-between"
+                onClick={() => setIsNotesSheetOpen(true)}
+                data-testid="button-score-notes"
+              >
+                <span className="inline-flex items-center gap-2">Notes</span>
+                <span className="text-muted-foreground">↵</span>
+              </Button>
               <Button
                 className="justify-between"
                 onClick={saveToPortfolio}
@@ -927,7 +1315,80 @@ export default function MapPage() {
             )}
           </div>
         </Card>
+        </div>
       </div>
+
+      <Sheet
+        open={isBreakdownSheetOpen}
+        onOpenChange={(open) => {
+          setIsBreakdownSheetOpen(open);
+          if (!open) setIsBreakdownEditMode(false);
+        }}
+        modal={false}
+      >
+        <SheetContent side="right" className="w-full sm:max-w-xl" showOverlay={false}>
+          <SheetHeader>
+            <SheetTitle>Detailed Score Breakdown</SheetTitle>
+          </SheetHeader>
+          <div className="mt-4 space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <div className="text-xs text-muted-foreground">
+                Rendered markdown preview. Switch to Edit if you want to refine the content before saving.
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsBreakdownEditMode((prev) => !prev)}
+                data-testid="button-toggle-breakdown-edit"
+              >
+                {isBreakdownEditMode ? "Preview" : "Edit"}
+              </Button>
+            </div>
+
+            {isBreakdownEditMode ? (
+              <Textarea
+                value={detailedBreakdownText}
+                onChange={(event) => setDetailedBreakdownText(event.target.value)}
+                placeholder="Generate a breakdown first, then refine your notes here..."
+                className="min-h-[70vh] resize-none text-sm"
+                data-testid="textarea-detailed-breakdown"
+              />
+            ) : (
+              <div className="max-h-[70vh] overflow-auto rounded-lg border bg-muted/20 p-4">
+                {detailedBreakdownText ? (
+                  <div className="markdown-body text-sm">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{detailedBreakdownText}</ReactMarkdown>
+                  </div>
+                ) : (
+                  <div className="text-sm text-muted-foreground">
+                    Generate a breakdown first to view the markdown preview.
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      <Sheet open={isNotesSheetOpen} onOpenChange={setIsNotesSheetOpen} modal={false}>
+        <SheetContent side="right" className="w-full sm:max-w-xl" showOverlay={false}>
+          <SheetHeader>
+            <SheetTitle>Notes</SheetTitle>
+          </SheetHeader>
+          <div className="mt-4 space-y-3">
+            <div className="text-xs text-muted-foreground">
+              Add your own notes for this score. These notes will be stored in site_scores.notes on Save to portfolio.
+            </div>
+            <Textarea
+              value={scoreNotes}
+              onChange={(event) => setScoreNotes(event.target.value)}
+              placeholder="Add observations, assumptions, or follow-up actions..."
+              className="min-h-[60vh] resize-none"
+              data-testid="textarea-score-notes"
+            />
+          </div>
+        </SheetContent>
+      </Sheet>
     </AppShell>
   );
 }

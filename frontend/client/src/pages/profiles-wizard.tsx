@@ -14,25 +14,38 @@ import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 import { useLocalStorageState } from "@/hooks/use-local-storage";
 import { mockProfiles, type BusinessProfile } from "@/lib/mock-data";
+import { getAppUserId } from "@/lib/app-user";
 
 const sectors = [
+  "Food & beverage",
+  "Retail & e-commerce",
   "Professional services",
   "Education & training",
   "Health & wellness",
   "Beauty & personal care",
+  "Home services",
+  "Automotive",
+  "Technology & electronics",
+  "Travel & hospitality",
+  "Arts & creative",
+  "Pet services",
+  "Financial services",
   "Entertainment & leisure",
   "Supermarket/Retail",
   "Showrooms",
+  "Others",
 ];
 
-const priceBands = [
-  "$1-$20",
-  "$21-$50",
-  "$51-$100",
-  "$100-$500",
-  "$500-$1000",
-  "$1000+",
-];
+type ProfileWizardFormValues = {
+  name: string;
+  sector: string;
+  customSector: string;
+  priceMin: string;
+  priceMax: string;
+  ageGroups: string[];
+  incomeBands: string[];
+  operatingModel: string;
+};
 
 const ageGroups = ["18-24", "25-34", "35-44", "45-54", "55-64", "65+"];
 
@@ -48,29 +61,106 @@ export default function ProfileWizard() {
   const [step, setStep] = useState(1);
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const userId = getAppUserId();
   const [, setProfiles] = useLocalStorageState<BusinessProfile[]>(
     "smartlocate:profiles",
     mockProfiles,
   );
 
-  const form = useForm({
+  const form = useForm<ProfileWizardFormValues>({
     defaultValues: {
       name: "",
       sector: "",
-      priceBand: "",
+      customSector: "",
+      priceMin: "",
+      priceMax: "",
       ageGroups: [] as string[],
       incomeBands: [] as string[],
       operatingModel: "Mixed",
     },
   });
 
+  const getResolvedSectorValue = () => {
+    const { sector, customSector } = form.getValues();
+    if (sector !== "Others") {
+      return sector;
+    }
+
+    return customSector.trim();
+  };
+
+  const validateSector = () => {
+    const resolvedSector = getResolvedSectorValue();
+    if (!resolvedSector) {
+      form.setError("customSector", { message: "Please enter your sector." });
+      return "";
+    }
+
+    form.clearErrors("customSector");
+    return resolvedSector;
+  };
+
+  const buildPriceBand = () => {
+    const { priceMin, priceMax } = form.getValues();
+    const trimmedMin = priceMin.trim();
+    const trimmedMax = priceMax.trim();
+
+    if (!/^\d+$/.test(trimmedMin)) {
+      form.setError("priceMin", { message: "Lowest value must be a valid number." });
+      return null;
+    }
+
+    const parsedMin = Number(trimmedMin);
+    if (parsedMin < 1) {
+      form.setError("priceMin", { message: "Lowest value must be at least 1." });
+      return null;
+    }
+
+    if (!/^\d+$/.test(trimmedMax)) {
+      form.setError("priceMax", { message: "Highest value must be a valid number." });
+      return null;
+    }
+
+    const parsedMax = Number(trimmedMax);
+    if (parsedMax < parsedMin) {
+      form.setError("priceMax", { message: "Highest value must be greater than or equal to lowest value." });
+      return null;
+    }
+
+    form.clearErrors("priceMin");
+    form.clearErrors("priceMax");
+    return `${parsedMin}-${parsedMax}`;
+  };
+
+  const getPriceBandPreview = () => {
+    const { priceMin, priceMax } = form.getValues();
+    const trimmedMin = priceMin.trim();
+    const trimmedMax = priceMax.trim();
+
+    if (!/^\d+$/.test(trimmedMin) || !/^\d+$/.test(trimmedMax)) {
+      return null;
+    }
+
+    const parsedMin = Number(trimmedMin);
+    const parsedMax = Number(trimmedMax);
+
+    if (parsedMin < 1 || parsedMax < parsedMin) {
+      return null;
+    }
+
+    return `${parsedMin}-${parsedMax}`;
+  };
+
   const next = () => {
     if (step === 1) {
-      const { name, sector, priceBand } = form.getValues();
-      if (!name || !sector || !priceBand) {
+      const { name } = form.getValues();
+      const resolvedSector = validateSector();
+      const computedPriceBand = buildPriceBand();
+
+      if (!name || !resolvedSector || !computedPriceBand) {
         toast({
           title: "Complete the basics",
-          description: "Add a name, sector, and price band to continue.",
+          description: "Add a name, sector, and valid numeric price range to continue.",
           variant: "destructive",
         });
         return;
@@ -93,6 +183,108 @@ export default function ProfileWizard() {
   };
   const back = () => setStep((s) => Math.max(s - 1, 1));
 
+  const onSubmit = form.handleSubmit(async (data) => {
+    if (step < 4) {
+      toast({
+        title: "Complete all steps",
+        description: "Profile is saved only after clicking Save Profile on the final step.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const computedPriceBand = buildPriceBand();
+    const resolvedSector = validateSector();
+    if (!computedPriceBand) {
+      toast({
+        title: "Invalid price range",
+        description: "Check lowest and highest values before saving.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!resolvedSector) {
+      toast({
+        title: "Invalid sector",
+        description: "Select a sector or provide one under Others.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const incomeLabels = data.incomeBands.map((band) => {
+      const entry = incomeBands.find((i) => i.value === band);
+      if (!entry) return band;
+      return entry.label.split(" ")[0];
+    });
+
+    try {
+      const response = await fetch("/api/profiles", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          userId,
+          name: data.name,
+          sector: resolvedSector,
+          priceBand: computedPriceBand,
+          ageGroups: data.ageGroups,
+          incomeBands: incomeLabels,
+          operatingModel: data.operatingModel,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("failed");
+      }
+
+      const row = (await response.json()) as {
+        id: string;
+        name: string;
+        sector: string;
+        priceBand: string;
+        ageGroups: string[];
+        incomeBands: string[];
+        operatingModel: string;
+        active: boolean;
+        updatedAt: string;
+      };
+
+      const mapped: BusinessProfile = {
+        id: row.id,
+        name: row.name,
+        sector: row.sector,
+        priceBand: row.priceBand,
+        ageGroups: row.ageGroups,
+        incomeBands: row.incomeBands,
+        operatingModel: row.operatingModel,
+        active: row.active,
+        updatedAt: new Date(row.updatedAt).toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+        }),
+      };
+
+      setProfiles((prev) => [mapped, ...prev.map((p) => ({ ...p, active: false }))]);
+      toast({
+        title: "Profile created",
+        description: `${data.name} has been added to your profiles.`,
+      });
+      setLocation("/profiles");
+    } catch {
+      toast({
+        title: "Unable to save profile",
+        description: "Please check server setup and try again.",
+        variant: "destructive",
+      });
+    }
+  });
+
+  /*
+  Legacy local-only save flow (pre-API wiring)
   const onSubmit = form.handleSubmit((data) => {
     const incomeLabels = data.incomeBands.map((band) => {
       const entry = incomeBands.find((i) => i.value === band);
@@ -131,6 +323,7 @@ export default function ProfileWizard() {
     });
     setLocation("/profiles");
   });
+  */
 
   const stepTitles = ["Basics", "Target Customers", "Operating Model", "Review & Save"];
 
@@ -159,7 +352,12 @@ export default function ProfileWizard() {
         </div>
 
         <Card className="border bg-card p-6 shadow-sm">
-          <form onSubmit={onSubmit} className="space-y-6">
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+            }}
+            className="space-y-6"
+          >
             {step === 1 && (
               <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2">
                 <div className="space-y-2">
@@ -175,7 +373,7 @@ export default function ProfileWizard() {
                   <Label>Sector</Label>
                   <Select
                     onValueChange={(v) => form.setValue("sector", v)}
-                    defaultValue={form.getValues("sector")}
+                    value={form.watch("sector")}
                   >
                     <SelectTrigger data-testid="select-sector">
                       <SelectValue placeholder="Select sector" />
@@ -188,24 +386,54 @@ export default function ProfileWizard() {
                       ))}
                     </SelectContent>
                   </Select>
+                  {form.watch("sector") === "Others" ? (
+                    <>
+                      <Input
+                        type="text"
+                        placeholder="Type your sector"
+                        {...form.register("customSector")}
+                        data-testid="input-custom-sector"
+                      />
+                      {form.formState.errors.customSector ? (
+                        <p className="text-xs text-destructive" data-testid="text-custom-sector-error">
+                          {form.formState.errors.customSector.message}
+                        </p>
+                      ) : null}
+                    </>
+                  ) : null}
                 </div>
                 <div className="space-y-2">
-                  <Label>Price Band</Label>
-                  <Select
-                    onValueChange={(v) => form.setValue("priceBand", v)}
-                    defaultValue={form.getValues("priceBand")}
-                  >
-                    <SelectTrigger data-testid="select-price-band">
-                      <SelectValue placeholder="Select price band" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {priceBands.map((p) => (
-                        <SelectItem key={p} value={p}>
-                          {p}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Label>Price Band (S$)</Label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="text"
+                      inputMode="numeric"
+                      placeholder="(Min $1)"
+                      {...form.register("priceMin")}
+                      data-testid="input-price-min"
+                    />
+                    <span className="text-muted-foreground">-</span>
+                    <Input
+                      type="text"
+                      inputMode="numeric"
+                      placeholder=""
+                      {...form.register("priceMax")}
+                      data-testid="input-price-max"
+                    />
+                  </div>
+                  {form.formState.errors.priceMin ? (
+                    <p className="text-xs text-destructive" data-testid="text-price-min-error">
+                      {form.formState.errors.priceMin.message}
+                    </p>
+                  ) : null}
+                  {form.formState.errors.priceMax ? (
+                    <p className="text-xs text-destructive" data-testid="text-price-max-error">
+                      {form.formState.errors.priceMax.message}
+                    </p>
+                  ) : null}
+                  <p className="text-xs text-muted-foreground">
+                    Enter numbers only. Saved format: lowest-highest.
+                  </p>
                 </div>
               </div>
             )}
@@ -213,7 +441,19 @@ export default function ProfileWizard() {
             {step === 2 && (
               <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
                 <div className="space-y-3">
-                  <Label>Target Age Groups</Label>
+                  <div className="flex items-center justify-between">
+                    <Label>Target Age Groups</Label>
+                    <label className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
+                      <Checkbox
+                        checked={form.watch("ageGroups").length === ageGroups.length}
+                        onCheckedChange={(checked) => {
+                          form.setValue("ageGroups", checked === true ? [...ageGroups] : []);
+                        }}
+                        data-testid="checkbox-age-select-all"
+                      />
+                      Select All
+                    </label>
+                  </div>
                   <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                     {ageGroups.map((age) => (
                       <label
@@ -238,7 +478,22 @@ export default function ProfileWizard() {
                 </div>
 
                 <div className="space-y-3">
-                  <Label>Income Bands</Label>
+                  <div className="flex items-center justify-between">
+                    <Label>Income Bands</Label>
+                    <label className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
+                      <Checkbox
+                        checked={form.watch("incomeBands").length === incomeBands.length}
+                        onCheckedChange={(checked) => {
+                          form.setValue(
+                            "incomeBands",
+                            checked === true ? incomeBands.map((band) => band.value) : [],
+                          );
+                        }}
+                        data-testid="checkbox-income-select-all"
+                      />
+                      Select All
+                    </label>
+                  </div>
                   <div className="space-y-2">
                     {incomeBands.map((band) => (
                       <label
@@ -308,11 +563,11 @@ export default function ProfileWizard() {
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-muted-foreground">Sector</span>
-                      <span className="font-medium">{form.getValues("sector") || "—"}</span>
+                      <span className="font-medium">{getResolvedSectorValue() || "—"}</span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-muted-foreground">Price band</span>
-                      <span className="font-medium">{form.getValues("priceBand") || "—"}</span>
+                      <span className="font-medium">{getPriceBandPreview() ?? "—"}</span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-muted-foreground">Age groups</span>
@@ -368,7 +623,13 @@ export default function ProfileWizard() {
                   <ChevronRight className="ml-2 h-4 w-4" />
                 </Button>
               ) : (
-                <Button type="submit" data-testid="button-wizard-save">
+                <Button
+                  type="button"
+                  onClick={() => {
+                    void onSubmit();
+                  }}
+                  data-testid="button-wizard-save"
+                >
                   <Save className="mr-2 h-4 w-4" />
                   Save Profile
                 </Button>

@@ -54,15 +54,69 @@ Create a `.env` file with:
 VITE_GOOGLE_MAPS_API_KEY=your_key_here
 ```
 
-If you are using Supabase, you have two options for the server connection in [frontend/server/db.ts](frontend/server/db.ts):
+If you are using Supabase, you have three options for the server connection in [frontend/server/db.ts](frontend/server/db.ts):
 
-1. Export a full `DATABASE_URL` in your shell.
-2. Keep `VITE_SUPABASE_URL` in `.env` and export `SUPABASE_DB_PASSWORD` in your shell. The server will derive the PostgreSQL URL automatically.
+1. Export a full `SUPABASE_DATABASE_URL` (recommended, from Supabase dashboard).
+2. Export a full `DATABASE_URL` in your shell.
+3. Keep `VITE_SUPABASE_URL` in `.env` and export `SUPABASE_DB_PASSWORD` in your shell. The server will derive the PostgreSQL URL automatically.
+
+Optional overrides (when deriving URL):
+- `SUPABASE_DB_HOST` (for example, a pooler host such as `aws-0-ap-southeast-1.pooler.supabase.com`)
+- `SUPABASE_POOLER_HOST` (alternative to `SUPABASE_DB_HOST`)
+- `SUPABASE_USE_POOLER=true` + `SUPABASE_POOLER_REGION` (for example `ap-southeast-1`)
+- `SUPABASE_DB_USER` (pooler commonly uses `postgres.<project_ref>`)
+- `SUPABASE_DB_PORT` (pooler commonly uses `6543`, direct often `5432`)
+- `SUPABASE_DB_NAME` (default `postgres`)
+- `SUPABASE_DB_SSLMODE` (default `require`)
+- `SUPABASE_DB_ALLOW_SELF_SIGNED=true` (only for networks/proxies that inject self-signed certs)
 
 PowerShell example:
 ```powershell
 $env:SUPABASE_DB_PASSWORD = "your-database-password"
 ```
+
+If you get `ENOTFOUND` for `db.<project-ref>.supabase.co`, your project may require the pooler host. Use the connection string from Supabase Dashboard > Connect > Connection string, or set `SUPABASE_DB_HOST` explicitly.
+
+If you get `ETIMEDOUT` to an IPv6 address on port `5432`, your network likely cannot reach the direct DB host over IPv6. Use the pooler (IPv4) path:
+
+```powershell
+cd frontend
+$env:SUPABASE_DB_PASSWORD = "your-db-password"
+$env:SUPABASE_USE_POOLER = "true"
+$env:SUPABASE_POOLER_REGION = "ap-southeast-1"
+$env:SUPABASE_DB_USER = "postgres.<your-project-ref>"
+$env:SUPABASE_DB_PORT = "6543"
+$env:SUPABASE_DB_SSLMODE = "require"
+npm run db:push
+```
+
+Or set the host directly:
+
+```powershell
+cd frontend
+$env:SUPABASE_DB_PASSWORD = "your-db-password"
+$env:SUPABASE_DB_HOST = "aws-0-ap-southeast-1.pooler.supabase.com"
+$env:SUPABASE_DB_USER = "postgres.<your-project-ref>"
+$env:SUPABASE_DB_PORT = "6543"
+$env:SUPABASE_DB_SSLMODE = "require"
+npm run db:push
+```
+
+If you see `SELF_SIGNED_CERT_IN_CHAIN`, your network is intercepting TLS. Temporarily enable compatibility mode:
+
+```powershell
+$env:SUPABASE_DB_ALLOW_SELF_SIGNED = "true"
+npm run db:push
+```
+
+Keep `SUPABASE_DB_ALLOW_SELF_SIGNED` disabled on trusted direct networks.
+
+If you see `Tenant or user not found`, your pooler host/region or DB user is incorrect. Do not guess these values:
+
+1. Open Supabase Dashboard > Project > Connect > Connection string.
+2. Choose the **Transaction pooler** string.
+3. Copy its host, port, user, and database exactly.
+4. Set `SUPABASE_DATABASE_URL` to that full string (recommended), or map each field into `SUPABASE_DB_HOST`, `SUPABASE_DB_PORT`, `SUPABASE_DB_USER`, `SUPABASE_DB_NAME`.
 
 Provision the schema before first run:
 ```bash
@@ -79,6 +133,85 @@ cd frontend
 HOST=127.0.0.1 PORT=5173 npm run dev
 ```
 Open `http://127.0.0.1:5173`.
+
+## Gemini AI Chatbot Setup (Step-by-Step)
+
+Use this if you want the Explain Score chatbot to call Gemini instead of fallback responses.
+
+1. Create a Gemini API key.
+	 - Go to Google AI Studio: https://aistudio.google.com/
+	 - Sign in and create an API key.
+	 - Copy the key value.
+
+2. Add the key to your environment file.
+	 - Open `frontend/.env` (create it if it does not exist).
+	 - Add:
+
+```bash
+# Required for Gemini chatbot/explanations
+GEMINI_API_KEY=your_gemini_api_key_here
+
+# Optional fallback variable name (supported by this app)
+# GOOGLE_GEMINI_API_KEY=your_gemini_api_key_here
+
+# Optional chatbot tuning
+GEMINI_CHATBOT_MODEL=gemini-2.0-flash
+GEMINI_CHATBOT_TIMEOUT_MS=30000
+```
+
+3. Make sure the key is server-side only.
+	 - Do not use a `VITE_` prefix for Gemini keys.
+	 - `VITE_` variables are exposed to browser code.
+
+4. Restart the dev server.
+	 - Stop the current process and run:
+
+```bash
+cd frontend
+npm run dev
+```
+
+5. Verify the chatbot endpoint.
+	 - Send a quick test request to `/api/chatbot`:
+
+```bash
+curl -X POST http://127.0.0.1:5000/api/chatbot \
+	-H "Content-Type: application/json" \
+	-d '{
+		"message": "Explain this score in simple terms.",
+		"pageContext": {
+			"page": "map",
+			"scores": {
+				"composite": 72,
+				"demographic": 68,
+				"accessibility": 81,
+				"rental": 57,
+				"competition": 62
+			}
+		}
+	}'
+```
+
+6. Verify in UI.
+	 - Go to Map, Portfolio, or Compare.
+	 - Click Explain score or the sparkle chatbot button.
+	 - You should get Gemini-generated replies instead of fallback text.
+
+### Gemini Troubleshooting
+
+- If you see fallback responses:
+	- Check `GEMINI_API_KEY` in `frontend/.env`.
+	- Restart `npm run dev` after changing `.env`.
+	- Confirm no typo in variable names.
+
+- If requests fail or are slow:
+	- Try a simpler prompt.
+	- Increase timeout with `GEMINI_CHATBOT_TIMEOUT_MS=45000`.
+	- Verify internet access to `generativelanguage.googleapis.com`.
+
+- If you want to switch models:
+	- Update `GEMINI_CHATBOT_MODEL` (for example: `gemini-2.0-flash`).
+	- Restart the dev server.
 
 **Planned Work (Next Steps)**
 - Implement real backend API (profiles, scoring, sites).

@@ -8,6 +8,7 @@ import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ChartContainer, ChartLegend, ChartLegendContent, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { mockSites, CandidateSite } from "@/lib/mock-data";
+import { openChatbot } from "@/lib/chatbot";
 import { useToast } from "@/hooks/use-toast";
 import { useLocalStorageState } from "@/hooks/use-local-storage";
 
@@ -88,19 +89,51 @@ export default function Compare() {
     );
   }, [selectedSites]);
 
+  const explainComparison = () => {
+    if (selectedSites.length < 2) {
+      toast({
+        title: "Select at least 2 sites",
+        description: "Choose two sites to get a meaningful comparison explanation.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    openChatbot({
+      context: {
+        page: "compare",
+        title: "Site comparison explanation",
+        sites: selectedSites.map((site) => ({
+          id: site.id,
+          name: site.name,
+          address: site.address,
+          composite: site.composite,
+          demographic: site.demographic,
+          accessibility: site.accessibility,
+          rental: site.rental,
+          competition: site.competition,
+        })),
+      },
+      starterPrompt:
+        "Compare these selected sites, identify the strongest option, and explain key trade-offs clearly.",
+    });
+  };
+
   return (
     <AppShell
       title="Compare"
       right={
-        <Button
-          variant="secondary"
-          className="gap-2"
-          onClick={() => toast({ title: "Export PDF (prototype)", description: "A PDF would download here." })}
-          data-testid="button-export-pdf"
-        >
-          <Download className="h-4 w-4" aria-hidden="true" />
-          Export PDF
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="secondary"
+            className="gap-2"
+            onClick={() => toast({ title: "Export PDF (prototype)", description: "A PDF would download here." })}
+            data-testid="button-export-pdf"
+          >
+            <Download className="h-4 w-4" aria-hidden="true" />
+            Export PDF
+          </Button>
+        </div>
       }
     >
       <div className="space-y-6">
@@ -158,9 +191,21 @@ export default function Compare() {
         ) : (
           <div className="space-y-4">
             <Card className="border bg-card p-5 shadow-sm">
-              <div className="text-sm font-semibold" data-testid="text-compare-chart-title">Score comparison</div>
-              <div className="mt-1 text-xs text-muted-foreground" data-testid="text-compare-chart-subtitle">
-                Dimension scores across selected sites.
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div>
+                  <div className="text-sm font-semibold" data-testid="text-compare-chart-title">Score comparison</div>
+                  <div className="mt-1 text-xs text-muted-foreground" data-testid="text-compare-chart-subtitle">
+                    Dimension scores across selected sites.
+                  </div>
+                </div>
+                <Button
+                  variant="outline"
+                  className="gap-2"
+                  onClick={explainComparison}
+                  data-testid="button-explain-comparison"
+                >
+                  Explain Comparison
+                </Button>
               </div>
               <div className="mt-4">
                 <ChartContainer className="h-72" config={chartConfig}>
