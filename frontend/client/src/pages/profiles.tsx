@@ -15,7 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { mockProfiles, BusinessProfile } from "@/lib/mock-data";
 import { useToast } from "@/hooks/use-toast";
 import { useLocalStorageState } from "@/hooks/use-local-storage";
-import { getAppUserId } from "@/lib/app-user";
+import { useAuth } from "@/context/auth-context";
 
 const sectors = [
   "Food & beverage",
@@ -62,7 +62,8 @@ type EditWizardFormValues = {
 
 export default function Profiles() {
   const { toast } = useToast();
-  const userId = useMemo(() => getAppUserId(), []);
+  const { user, loading: authLoading } = useAuth();
+  const userId = user?.id ?? "";
   const [editingProfileId, setEditingProfileId] = useState<string | null>(null);
   const [editStep, setEditStep] = useState(1);
 
@@ -105,6 +106,10 @@ export default function Profiles() {
     let cancelled = false;
 
     const fetchProfiles = async () => {
+      if (authLoading || !userId) {
+        return;
+      }
+
       try {
         const response = await fetch(`/api/profiles?userId=${encodeURIComponent(userId)}`);
         if (!response.ok) {
@@ -159,7 +164,7 @@ export default function Profiles() {
     return () => {
       cancelled = true;
     };
-  }, [setProfiles, toast, userId]);
+  }, [setProfiles, toast, userId, authLoading]);
 
   const safeProfiles = useMemo(
     () =>

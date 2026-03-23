@@ -24,8 +24,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { useLocalStorageState } from "@/hooks/use-local-storage";
 import { openChatbot } from "@/lib/chatbot";
-import { mockProfiles, mockSites, type BusinessProfile } from "@/lib/mock-data";
-import { getAppUserId } from "@/lib/app-user";
+import { mockProfiles, type BusinessProfile, type CandidateSite } from "@/lib/mock-data";
+import { useAuth } from "@/context/auth-context";
 
 type Overlay = "Composite" | "Demographics" | "Accessibility" | "Vacancy";
 
@@ -89,7 +89,8 @@ function normalize(w: Weights): Weights {
 
 export default function MapPage() {
   const { toast } = useToast();
-  const userId = useMemo(() => getAppUserId(), []);
+  const { user, loading: authLoading } = useAuth();
+  const userId = user?.id ?? "";
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<any | null>(null);
   const markerRef = useRef<any | null>(null);
@@ -112,7 +113,7 @@ export default function MapPage() {
   const [mapReady, setMapReady] = useState(false);
 
   const [profiles, setProfiles] = useLocalStorageState<BusinessProfile[]>("smartlocate:profiles", []);
-  const [, setSites] = useLocalStorageState("smartlocate:sites", mockSites);
+  const [, setSites] = useLocalStorageState<CandidateSite[]>("smartlocate:sites", []);
   const [activeProfileId, setActiveProfileId] = useState<string>("");
   const [scenario, setScenario] = useState<string>("Normal");
   const [overlay, setOverlay] = useState<Overlay>("Composite");
@@ -664,6 +665,10 @@ export default function MapPage() {
     let cancelled = false;
 
     const fetchProfiles = async () => {
+      if (authLoading || !userId) {
+        return;
+      }
+
       try {
         const response = await fetch(`/api/profiles?userId=${encodeURIComponent(userId)}`);
         if (!response.ok) {
@@ -713,7 +718,7 @@ export default function MapPage() {
     return () => {
       cancelled = true;
     };
-  }, [profiles.length, setProfiles, userId]);
+  }, [profiles.length, setProfiles, userId, authLoading]);
 
   /*
   Legacy local-only active profile init behavior

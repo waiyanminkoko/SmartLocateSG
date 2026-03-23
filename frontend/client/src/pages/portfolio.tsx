@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "wouter";
 import { FileText, Map as MapIcon, Trash2 } from "lucide-react";
 
@@ -10,23 +10,139 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { mockProfiles, mockSites, CandidateSite } from "@/lib/mock-data";
+import { mockProfiles, CandidateSite } from "@/lib/mock-data";
 import { openChatbot } from "@/lib/chatbot";
 import { useToast } from "@/hooks/use-toast";
 import { useLocalStorageState } from "@/hooks/use-local-storage";
+import { useAuth } from "@/context/auth-context";
 
 export default function Portfolio() {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
+  const { user, loading: authLoading } = useAuth();
+  const userId = user?.id ?? "";
 
-  const [profiles] = useLocalStorageState("smartlocate:profiles", mockProfiles);
+  const [profiles, setProfiles] = useLocalStorageState("smartlocate:profiles", mockProfiles);
   const [sites, setSites] = useLocalStorageState<CandidateSite[]>(
     "smartlocate:sites",
-    mockSites,
+    [],
   );
   const [query, setQuery] = useState<string>("");
   const [profileFilter, setProfileFilter] = useState<string>("all");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+
+  // Auto-filter to active profile when profiles load
+  useEffect(() => {
+    const activeProfile = profiles.find((p) => p.active);
+    if (activeProfile) {
+      setProfileFilter(activeProfile.id);
+    }
+  }, [profiles]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const fetchPortfolioData = async () => {
+      if (authLoading || !userId) {
+        return;
+      }
+
+      try {
+        const [profilesResponse, sitesResponse] = await Promise.all([
+          fetch(`/api/profiles?userId=${encodeURIComponent(userId)}`),
+          fetch(`/api/sites/${encodeURIComponent(userId)}`),
+        ]);
+
+        if (!profilesResponse.ok || !sitesResponse.ok) {
+          throw new Error("failed");
+        }
+
+        const profileRows = (await profilesResponse.json()) as Array<{
+          id: string;
+          name: string;
+          sector: string;
+          priceBand: string;
+          ageGroups: string[];
+          incomeBands: string[];
+          operatingModel: string;
+          active: boolean;
+          updatedAt: string;
+        }>;
+
+        const mappedProfiles = profileRows.map((row) => ({
+          id: row.id,
+          name: row.name,
+          sector: row.sector,
+          priceBand: row.priceBand,
+          ageGroups: row.ageGroups,
+          incomeBands: row.incomeBands,
+          operatingModel: row.operatingModel,
+          active: row.active,
+          updatedAt: new Date(row.updatedAt).toLocaleDateString("en-US", {
+            month: "short",
+            day: "numeric",
+            year: "numeric",
+          }),
+        }));
+
+        const siteRows = (await sitesResponse.json()) as Array<{
+          id: string;
+          profileId: string | null;
+          name: string;
+          address: string;
+          composite: number | null;
+          demographic: number | null;
+          accessibility: number | null;
+          rental: number | null;
+          competition: number | null;
+          savedAt: string;
+          notes?: string;
+          lat?: number | null;
+          lng?: number | null;
+        }>;
+
+        const mappedSites: CandidateSite[] = siteRows.map((row) => ({
+          id: row.id,
+          profileId: row.profileId ?? "",
+          name: row.name,
+          address: row.address,
+          composite: row.composite ?? 0,
+          demographic: row.demographic ?? 0,
+          accessibility: row.accessibility ?? 0,
+          rental: row.rental ?? 0,
+          competition: row.competition ?? 0,
+          savedAt: new Date(row.savedAt).toLocaleDateString("en-US", {
+            month: "short",
+            day: "numeric",
+            year: "numeric",
+          }),
+          notes: row.notes,
+          lat: row.lat ?? undefined,
+          lng: row.lng ?? undefined,
+        }));
+
+        if (!cancelled) {
+          setProfiles(mappedProfiles);
+          setSites(mappedSites);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          console.error("Portfolio fetch error:", error);
+          toast({
+            title: "Portfolio API unavailable",
+            description: "Showing locally stored sites.",
+            variant: "destructive",
+          });
+        }
+      }
+    };
+
+    fetchPortfolioData();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [setProfiles, setSites, toast, userId, authLoading]);
 
   const filtered = useMemo(() => {
     let result = sites;
@@ -42,8 +158,27 @@ export default function Portfolio() {
   }, [sites, query, profileFilter]);
 
   const remove = (id: string) => {
-    setSites((prev) => prev.filter((s) => s.id !== id));
-    toast({ title: "Site removed (prototype)" });
+    void (async () => {
+      try {
+        const response = await fetch(
+          `/api/sites/${encodeURIComponent(id)}?userId=${encodeURIComponent(userId)}`,
+          { method: "DELETE" },
+        );
+
+        if (!response.ok) {
+          throw new Error("failed");
+        }
+
+        setSites((prev) => prev.filter((s) => s.id !== id));
+        toast({ title: "Site removed" });
+      } catch {
+        toast({
+          title: "Failed to remove site",
+          description: "Please try again.",
+          variant: "destructive",
+        });
+      }
+    })();
   };
 
   const updateNotes = (id: string, notes: string) => {
