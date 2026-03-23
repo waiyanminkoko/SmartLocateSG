@@ -62,15 +62,11 @@ function Router() {
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <Router />
-        <ChatbotHost />
-      </TooltipProvider>
       <AuthProvider>
         <TooltipProvider>
           <Toaster />
           <Router />
+          <ChatbotHost />
         </TooltipProvider>
       </AuthProvider>
     </QueryClientProvider>
