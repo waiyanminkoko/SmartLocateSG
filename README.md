@@ -155,7 +155,7 @@ GEMINI_API_KEY=your_gemini_api_key_here
 # GOOGLE_GEMINI_API_KEY=your_gemini_api_key_here
 
 # Optional chatbot tuning
-GEMINI_CHATBOT_MODEL=gemini-2.0-flash
+GEMINI_CHATBOT_MODEL=gemini-3.1-flash-lite-preview
 GEMINI_CHATBOT_TIMEOUT_MS=30000
 ```
 
