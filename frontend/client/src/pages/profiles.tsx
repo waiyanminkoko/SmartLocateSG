@@ -115,6 +115,15 @@ export default function Profiles() {
         return;
       }
 
+      let forceRefresh = false;
+      if (typeof window !== "undefined") {
+        const refreshKey = `smartlocate:profiles:refresh:${userId}`;
+        forceRefresh = window.sessionStorage.getItem(refreshKey) === "1";
+        if (forceRefresh) {
+          window.sessionStorage.removeItem(refreshKey);
+        }
+      }
+
       try {
         const rows = await fetchJsonWithCache<
           Array<{
@@ -131,7 +140,7 @@ export default function Profiles() {
         >(
           `profiles:${userId}`,
           `/api/profiles?userId=${encodeURIComponent(userId)}`,
-          { ttlMs: PROFILES_CACHE_TTL_MS },
+          { ttlMs: PROFILES_CACHE_TTL_MS, forceRefresh },
         );
 
         const mapped: BusinessProfile[] = rows.map((row) => ({

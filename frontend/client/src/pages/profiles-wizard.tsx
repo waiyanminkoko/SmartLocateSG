@@ -66,7 +66,7 @@ export default function ProfileWizard() {
   const { toast } = useToast();
   const { user, loading: authLoading } = useAuth();
   const userId = user?.id ?? "";
-  const [, setProfiles] = useLocalStorageState<BusinessProfile[]>(
+  const [profiles, setProfiles] = useLocalStorageState<BusinessProfile[]>(
     "smartlocate:profiles",
     mockProfiles,
   );
@@ -281,11 +281,25 @@ export default function ProfileWizard() {
         }),
       };
 
-      setProfiles((prev) => {
-        const next = [mapped, ...prev.map((p) => ({ ...p, active: false }))];
-        writeApiCache(`profiles:${userId}`, next, PROFILES_CACHE_TTL_MS);
-        return next;
-      });
+      const nextProfiles = [
+        mapped,
+        ...profiles
+          .filter((profile) => profile.id !== mapped.id)
+          .map((profile) => ({ ...profile, active: false })),
+      ];
+
+      // Persist immediately so route changes do not drop this update.
+      if (typeof window !== "undefined") {
+        try {
+          window.localStorage.setItem("smartlocate:profiles", JSON.stringify(nextProfiles));
+          window.sessionStorage.setItem(`smartlocate:profiles:refresh:${userId}`, "1");
+        } catch {
+          // Ignore storage errors and rely on in-memory state.
+        }
+      }
+
+      writeApiCache(`profiles:${userId}`, nextProfiles, PROFILES_CACHE_TTL_MS);
+      setProfiles(nextProfiles);
       toast({
         title: "Profile created",
         description: `${data.name} has been added to your profiles.`,

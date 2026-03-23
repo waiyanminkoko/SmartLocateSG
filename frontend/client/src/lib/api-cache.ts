@@ -77,8 +77,17 @@ export async function fetchJsonWithCache<T>(
   }
 
   const existingRequest = inFlight.get(cacheKey);
-  if (existingRequest) {
+  if (existingRequest && !forceRefresh) {
     return (await existingRequest) as T;
+  }
+
+  if (existingRequest && forceRefresh) {
+    try {
+      // Let any older request finish first, then fetch a fresh copy.
+      await existingRequest;
+    } catch {
+      // Ignore older request failures; we'll do a fresh request below.
+    }
   }
 
   const request = (async () => {
