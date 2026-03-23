@@ -24,8 +24,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { useLocalStorageState } from "@/hooks/use-local-storage";
 import { openChatbot } from "@/lib/chatbot";
+import { fetchJsonWithCache, writeApiCache } from "@/lib/api-cache";
 import { mockProfiles, type BusinessProfile, type CandidateSite } from "@/lib/mock-data";
 import { useAuth } from "@/context/auth-context";
+
+const PROFILES_CACHE_TTL_MS = 2 * 60 * 1000;
+const SITES_CACHE_TTL_MS = 60 * 1000;
 
 type Overlay = "Composite" | "Demographics" | "Accessibility" | "Vacancy";
 
@@ -283,7 +287,11 @@ export default function MapPage() {
 
   const handleProfileChange = async (id: string) => {
     setActiveProfileId(id);
-    setProfiles((prev) => prev.map((p) => ({ ...p, active: p.id === id })));
+    setProfiles((prev) => {
+      const next = prev.map((p) => ({ ...p, active: p.id === id }));
+      writeApiCache(`profiles:${userId}`, next, PROFILES_CACHE_TTL_MS);
+      return next;
+    });
 
     try {
       const response = await fetch(`/api/profiles/${encodeURIComponent(id)}/activate`, {
@@ -517,7 +525,11 @@ export default function MapPage() {
           variant: "destructive",
         });
       } finally {
-        setSites((prev) => [newSite, ...prev]);
+        setSites((prev) => {
+          const next = [newSite, ...prev];
+          writeApiCache(`sites:${userId}`, next, SITES_CACHE_TTL_MS);
+          return next;
+        });
         toast({ title: "Saved to portfolio", description: "Site added to your list." });
       }
     })();
@@ -670,12 +682,8 @@ export default function MapPage() {
       }
 
       try {
-        const response = await fetch(`/api/profiles?userId=${encodeURIComponent(userId)}`);
-        if (!response.ok) {
-          throw new Error("failed");
-        }
-
-        const rows = (await response.json()) as Array<{
+        const rows = await fetchJsonWithCache<
+          Array<{
           id: string;
           name: string;
           sector: string;
@@ -685,7 +693,12 @@ export default function MapPage() {
           operatingModel: string;
           active: boolean;
           updatedAt: string;
-        }>;
+          }>
+        >(
+          `profiles:${userId}`,
+          `/api/profiles?userId=${encodeURIComponent(userId)}`,
+          { ttlMs: PROFILES_CACHE_TTL_MS },
+        );
 
         const mapped: BusinessProfile[] = rows.map((row) => ({
           id: row.id,

@@ -12,10 +12,14 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { mockProfiles, BusinessProfile } from "@/lib/mock-data";
+import { mockProfiles, BusinessProfile, CandidateSite } from "@/lib/mock-data";
+import { fetchJsonWithCache, invalidateApiCache, writeApiCache } from "@/lib/api-cache";
 import { useToast } from "@/hooks/use-toast";
 import { useLocalStorageState } from "@/hooks/use-local-storage";
 import { useAuth } from "@/context/auth-context";
+
+const PROFILES_CACHE_TTL_MS = 2 * 60 * 1000;
+const SITES_CACHE_TTL_MS = 60 * 1000;
 
 const sectors = [
   "Food & beverage",
@@ -84,6 +88,7 @@ export default function Profiles() {
     "smartlocate:profiles",
     [],
   );
+  const [, setSites] = useLocalStorageState<CandidateSite[]>("smartlocate:sites", []);
 
   /*
   Legacy localStorage-only bootstrap (pre-API wiring)
@@ -111,12 +116,8 @@ export default function Profiles() {
       }
 
       try {
-        const response = await fetch(`/api/profiles?userId=${encodeURIComponent(userId)}`);
-        if (!response.ok) {
-          throw new Error("failed");
-        }
-
-        const rows = (await response.json()) as Array<{
+        const rows = await fetchJsonWithCache<
+          Array<{
           id: string;
           name: string;
           sector: string;
@@ -126,7 +127,12 @@ export default function Profiles() {
           operatingModel: string;
           active: boolean;
           updatedAt: string;
-        }>;
+          }>
+        >(
+          `profiles:${userId}`,
+          `/api/profiles?userId=${encodeURIComponent(userId)}`,
+          { ttlMs: PROFILES_CACHE_TTL_MS },
+        );
 
         const mapped: BusinessProfile[] = rows.map((row) => ({
           id: row.id,
@@ -191,7 +197,11 @@ export default function Profiles() {
         throw new Error("failed");
       }
 
-      setProfiles((prev) => prev.map((p) => ({ ...p, active: p.id === id })));
+      setProfiles((prev) => {
+        const next = prev.map((p) => ({ ...p, active: p.id === id }));
+        writeApiCache(`profiles:${userId}`, next, PROFILES_CACHE_TTL_MS);
+        return next;
+      });
       toast({ title: "Active profile updated", description: "Scoring will use this profile." });
     } catch {
       toast({
@@ -220,7 +230,17 @@ export default function Profiles() {
         throw new Error("failed");
       }
 
-      setProfiles((prev) => prev.filter((p) => p.id !== id));
+      setProfiles((prev) => {
+        const next = prev.filter((p) => p.id !== id);
+        writeApiCache(`profiles:${userId}`, next, PROFILES_CACHE_TTL_MS);
+        return next;
+      });
+      setSites((prev) => {
+        const next = prev.filter((site) => site.profileId !== id);
+        writeApiCache(`sites:${userId}`, next, SITES_CACHE_TTL_MS);
+        return next;
+      });
+      invalidateApiCache(`sites:${userId}`);
       toast({ title: "Profile deleted", description: "Linked sites were removed from the database." });
     } catch {
       toast({
@@ -481,7 +501,8 @@ export default function Profiles() {
       });
 
       setProfiles((prev) =>
-        prev.map((profile) =>
+        {
+          const next = prev.map((profile) =>
           profile.id === row.id
             ? {
                 ...profile,
@@ -494,7 +515,10 @@ export default function Profiles() {
                 updatedAt,
               }
             : profile,
-        ),
+          );
+          writeApiCache(`profiles:${userId}`, next, PROFILES_CACHE_TTL_MS);
+          return next;
+        },
       );
 
       setEditingProfileId(null);

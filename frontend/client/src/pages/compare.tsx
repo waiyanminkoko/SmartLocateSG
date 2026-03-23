@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ChartContainer, ChartLegend, ChartLegendContent, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
-import { mockSites, CandidateSite } from "@/lib/mock-data";
+import { mockProfiles, mockSites, BusinessProfile, CandidateSite } from "@/lib/mock-data";
 import { openChatbot } from "@/lib/chatbot";
 import { useToast } from "@/hooks/use-toast";
 import { useLocalStorageState } from "@/hooks/use-local-storage";
@@ -15,6 +15,14 @@ import { useLocalStorageState } from "@/hooks/use-local-storage";
 export default function Compare() {
   const { toast } = useToast();
   const [sites] = useLocalStorageState<CandidateSite[]>("smartlocate:sites", mockSites);
+  const [profiles] = useLocalStorageState<BusinessProfile[]>("smartlocate:profiles", mockProfiles);
+
+  const activeProfile = useMemo(() => profiles.find((p) => p.active), [profiles]);
+  const activeProfileId = activeProfile?.id ?? "";
+  const profileSites = useMemo(
+    () => (activeProfileId ? sites.filter((s) => s.profileId === activeProfileId) : []),
+    [sites, activeProfileId],
+  );
 
   const [selected, setSelected] = useState<string[]>(() => {
     if (typeof window === "undefined") {
@@ -35,12 +43,27 @@ export default function Compare() {
   });
 
   useEffect(() => {
+    const allowedIds = new Set(profileSites.map((s) => s.id));
+    const defaultIds = profileSites.slice(0, 2).map((s) => s.id);
+
+    setSelected((prev) => {
+      const filtered = prev.filter((id) => allowedIds.has(id));
+      const next = filtered.length > 0 ? filtered : defaultIds;
+
+      if (next.length === prev.length && next.every((id, index) => id === prev[index])) {
+        return prev;
+      }
+      return next;
+    });
+  }, [profileSites]);
+
+  useEffect(() => {
     localStorage.setItem("compare:selected", JSON.stringify(selected));
   }, [selected]);
 
   const selectedSites = useMemo(
-    () => sites.filter((s) => selected.includes(s.id)).slice(0, 3),
-    [sites, selected],
+    () => profileSites.filter((s) => selected.includes(s.id)).slice(0, 3),
+    [profileSites, selected],
   );
 
   const toggle = (id: string) => {
@@ -142,12 +165,25 @@ export default function Compare() {
           <p className="mt-1 text-sm text-muted-foreground" data-testid="text-compare-subtitle">
             Compare 2–3 candidate sites side-by-side.
           </p>
+          <p className="mt-1 text-xs text-muted-foreground" data-testid="text-compare-active-profile">
+            Active profile: {activeProfile?.name ?? "None selected"}
+          </p>
         </div>
 
         <Card className="border bg-card p-5 shadow-sm">
           <div className="text-sm font-semibold" data-testid="text-compare-select-title">Select sites</div>
+          {!activeProfileId ? (
+            <div className="mt-3 rounded-xl border bg-muted/30 p-3 text-sm text-muted-foreground" data-testid="status-no-active-profile">
+              Select an active business profile in Profiles before comparing sites.
+            </div>
+          ) : null}
+          {activeProfileId && profileSites.length === 0 ? (
+            <div className="mt-3 rounded-xl border bg-muted/30 p-3 text-sm text-muted-foreground" data-testid="status-no-sites-for-profile">
+              No saved candidate sites for the active profile yet.
+            </div>
+          ) : null}
           <div className="mt-3 grid gap-2 md:grid-cols-3">
-            {sites.map((s) => (
+            {profileSites.map((s) => (
               <label
                 key={s.id}
                 className="flex cursor-pointer items-start gap-3 rounded-xl border bg-card p-3"

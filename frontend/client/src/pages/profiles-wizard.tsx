@@ -14,7 +14,10 @@ import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 import { useLocalStorageState } from "@/hooks/use-local-storage";
 import { mockProfiles, type BusinessProfile } from "@/lib/mock-data";
-import { getAppUserId } from "@/lib/app-user";
+import { writeApiCache } from "@/lib/api-cache";
+import { useAuth } from "@/context/auth-context";
+
+const PROFILES_CACHE_TTL_MS = 2 * 60 * 1000;
 
 const sectors = [
   "Food & beverage",
@@ -61,7 +64,8 @@ export default function ProfileWizard() {
   const [step, setStep] = useState(1);
   const [, setLocation] = useLocation();
   const { toast } = useToast();
-  const userId = getAppUserId();
+  const { user, loading: authLoading } = useAuth();
+  const userId = user?.id ?? "";
   const [, setProfiles] = useLocalStorageState<BusinessProfile[]>(
     "smartlocate:profiles",
     mockProfiles,
@@ -219,6 +223,15 @@ export default function ProfileWizard() {
       return entry.label.split(" ")[0];
     });
 
+    if (authLoading || !userId) {
+      toast({
+        title: "Please wait",
+        description: "Authentication is still loading. Try again in a moment.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
       const response = await fetch("/api/profiles", {
         method: "POST",
@@ -268,7 +281,11 @@ export default function ProfileWizard() {
         }),
       };
 
-      setProfiles((prev) => [mapped, ...prev.map((p) => ({ ...p, active: false }))]);
+      setProfiles((prev) => {
+        const next = [mapped, ...prev.map((p) => ({ ...p, active: false }))];
+        writeApiCache(`profiles:${userId}`, next, PROFILES_CACHE_TTL_MS);
+        return next;
+      });
       toast({
         title: "Profile created",
         description: `${data.name} has been added to your profiles.`,

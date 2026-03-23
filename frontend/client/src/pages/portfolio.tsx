@@ -12,9 +12,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { mockProfiles, CandidateSite } from "@/lib/mock-data";
 import { openChatbot } from "@/lib/chatbot";
+import { fetchJsonWithCache, invalidateApiCache } from "@/lib/api-cache";
 import { useToast } from "@/hooks/use-toast";
 import { useLocalStorageState } from "@/hooks/use-local-storage";
 import { useAuth } from "@/context/auth-context";
+
+const PROFILES_CACHE_TTL_MS = 2 * 60 * 1000;
+const SITES_CACHE_TTL_MS = 60 * 1000;
 
 export default function Portfolio() {
   const { toast } = useToast();
@@ -48,26 +52,46 @@ export default function Portfolio() {
       }
 
       try {
-        const [profilesResponse, sitesResponse] = await Promise.all([
-          fetch(`/api/profiles?userId=${encodeURIComponent(userId)}`),
-          fetch(`/api/sites/${encodeURIComponent(userId)}`),
+        const [profileRows, siteRows] = await Promise.all([
+          fetchJsonWithCache<
+            Array<{
+              id: string;
+              name: string;
+              sector: string;
+              priceBand: string;
+              ageGroups: string[];
+              incomeBands: string[];
+              operatingModel: string;
+              active: boolean;
+              updatedAt: string;
+            }>
+          >(
+            `profiles:${userId}`,
+            `/api/profiles?userId=${encodeURIComponent(userId)}`,
+            { ttlMs: PROFILES_CACHE_TTL_MS },
+          ),
+          fetchJsonWithCache<
+            Array<{
+              id: string;
+              profileId: string | null;
+              name: string;
+              address: string;
+              composite: number | null;
+              demographic: number | null;
+              accessibility: number | null;
+              rental: number | null;
+              competition: number | null;
+              savedAt: string;
+              notes?: string;
+              lat?: number | null;
+              lng?: number | null;
+            }>
+          >(
+            `sites:${userId}`,
+            `/api/sites/${encodeURIComponent(userId)}`,
+            { ttlMs: SITES_CACHE_TTL_MS },
+          ),
         ]);
-
-        if (!profilesResponse.ok || !sitesResponse.ok) {
-          throw new Error("failed");
-        }
-
-        const profileRows = (await profilesResponse.json()) as Array<{
-          id: string;
-          name: string;
-          sector: string;
-          priceBand: string;
-          ageGroups: string[];
-          incomeBands: string[];
-          operatingModel: string;
-          active: boolean;
-          updatedAt: string;
-        }>;
 
         const mappedProfiles = profileRows.map((row) => ({
           id: row.id,
@@ -84,22 +108,6 @@ export default function Portfolio() {
             year: "numeric",
           }),
         }));
-
-        const siteRows = (await sitesResponse.json()) as Array<{
-          id: string;
-          profileId: string | null;
-          name: string;
-          address: string;
-          composite: number | null;
-          demographic: number | null;
-          accessibility: number | null;
-          rental: number | null;
-          competition: number | null;
-          savedAt: string;
-          notes?: string;
-          lat?: number | null;
-          lng?: number | null;
-        }>;
 
         const mappedSites: CandidateSite[] = siteRows.map((row) => ({
           id: row.id,
@@ -170,6 +178,7 @@ export default function Portfolio() {
         }
 
         setSites((prev) => prev.filter((s) => s.id !== id));
+        invalidateApiCache(`sites:${userId}`);
         toast({ title: "Site removed" });
       } catch {
         toast({

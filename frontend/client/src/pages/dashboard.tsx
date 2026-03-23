@@ -19,6 +19,8 @@ function Stat({ label, value, testid }: { label: string; value: string; testid: 
 export default function Dashboard() {
   const [profiles] = useLocalStorageState("smartlocate:profiles", mockProfiles);
   const [sites] = useLocalStorageState("smartlocate:sites", mockSites);
+  const profileIds = new Set(profiles.map((profile) => profile.id));
+  const scopedSites = sites.filter((site) => profileIds.has(site.profileId));
 
   return (
     <AppShell
@@ -42,8 +44,8 @@ export default function Dashboard() {
 
         <div className="grid gap-3 md:grid-cols-3">
           <Stat label="Business profiles" value={String(profiles.length)} testid="profiles" />
-          <Stat label="Saved candidate sites" value={String(sites.length)} testid="sites" />
-          <Stat label="Ready for comparison" value={sites.length >= 2 ? "Yes" : "No"} testid="compare" />
+          <Stat label="Saved candidate sites" value={String(scopedSites.length)} testid="sites" />
+          <Stat label="Ready for comparison" value={scopedSites.length >= 2 ? "Yes" : "No"} testid="compare" />
         </div>
 
         <div className="grid gap-3 md:grid-cols-2">
@@ -110,14 +112,14 @@ export default function Dashboard() {
                 <Button
                   variant="secondary"
                   className="justify-between"
-                  disabled={sites.length < 2}
+                  disabled={scopedSites.length < 2}
                   data-testid="button-compare-sites"
                 >
                   <span className="inline-flex items-center gap-2">
                     <Scale className="h-4 w-4" aria-hidden="true" />
                     Compare Sites
                   </span>
-                  <span className="text-muted-foreground">{sites.length < 2 ? "Need 2+" : "↵"}</span>
+                  <span className="text-muted-foreground">{scopedSites.length < 2 ? "Need 2+" : "↵"}</span>
                 </Button>
               </Link>
 
@@ -141,13 +143,13 @@ export default function Dashboard() {
             </Link>
           </div>
 
-          {sites.length === 0 ? (
+          {scopedSites.length === 0 ? (
             <div className="mt-4 rounded-xl border bg-muted/30 p-4 text-sm text-muted-foreground" data-testid="empty-sites">
               Save a site from the map to build your portfolio.
             </div>
           ) : (
             <div className="mt-4 space-y-2">
-              {sites.slice(0, 3).map((s) => (
+              {scopedSites.slice(0, 3).map((s) => (
                 <div
                   key={s.id}
                   className="flex items-center justify-between rounded-xl border bg-card px-3 py-2"
