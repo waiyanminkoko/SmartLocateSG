@@ -250,7 +250,7 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return jsonResponse({ ok: true });
   if (req.method !== "POST") return jsonResponse({ error: "Use POST." }, 405);
 
-  if (!SUPABASE_URL || !SUPABASE_KEY) {
+  if (!SUPABASE_URL || !SUPABASE_KEY || !ANON_KEY) {
     return jsonResponse({ error: "Supabase credentials missing." }, 500);
   }
 

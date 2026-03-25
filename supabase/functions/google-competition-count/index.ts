@@ -54,10 +54,7 @@ const SUPABASE_URL =
   Deno.env.get("VITE_SUPABASE_URL") ?? 
   Deno.env.get("SUPABASE_URL") ??
   "";
-const SUPABASE_KEY =
-  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ??
-  Deno.env.get("VITE_SUPABASE_ANON_KEY") ??
-  "";
+const SUPABASE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 
 const GOOGLE_API_KEY =
   Deno.env.get("GOOGLE_PLACES_API_KEY") ??
