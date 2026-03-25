@@ -1,0 +1,136 @@
+@startuml SmartLocateSG_UseCaseModel_Master
+left to right direction
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam packageStyle rectangle
+skinparam actorStyle awesome
+skinparam usecase {
+  BackgroundColor #E3F2FD
+  BorderColor #1565C0
+  FontSize 11
+}
+
+actor "User\n(A01/A02/A03)" as User
+actor "System Backend\n(A04)" as Backend
+actor "External Data Providers\n(A05)" as External
+actor "AI Assistant" as AI
+
+rectangle "SmartLocateSG" {
+  package "Authentication" {
+    usecase "UC-01 Register Account" as UC01
+    usecase "UC-02 Verify Email" as UC02
+    usecase "UC-03 Log In" as UC03
+    usecase "UC-04 Log Out" as UC04
+    usecase "UC-05 Reset Password" as UC05
+  }
+
+  package "Business Profiles" {
+    usecase "UC-06 Create Business Profile" as UC06
+    usecase "UC-07 View Business Profiles" as UC07
+    usecase "UC-08 Edit Business Profile" as UC08
+    usecase "UC-09 Delete Business Profile" as UC09
+  }
+
+  package "Map and Scoring" {
+    usecase "UC-10 View Interactive Map" as UC10
+    usecase "UC-11 Toggle Map Layers" as UC11
+    usecase "UC-12 Search Location" as UC12
+    usecase "UC-13 Drop POI Pin and Get Site Score" as UC13
+    usecase "UC-14 View Planning Area Details" as UC14
+    usecase "UC-15 View Score Explanation" as UC15
+    usecase "UC-22 Select Scenario Preset" as UC22
+    usecase "UC-23 Adjust Scoring Weights" as UC23
+    usecase "UC-24 Reset Weights to Default" as UC24
+  }
+
+  package "Portfolio and Compare" {
+    usecase "UC-16 Save Candidate Site" as UC16
+    usecase "UC-17 View Portfolio" as UC17
+    usecase "UC-18 Edit Candidate Site Notes" as UC18
+    usecase "UC-19 Delete Candidate Site" as UC19
+    usecase "UC-20 Compare Candidate Sites" as UC20
+    usecase "UC-21 Export Comparison Report" as UC21
+  }
+
+  package "Operations and Admin" {
+    usecase "UC-25 Run/Monitor Data Refresh" as UC25
+    usecase "UC-26 View Data Update Status" as UC26
+    usecase "UC-27 Configure API Keys" as UC27
+    usecase "UC-28 Configure Default Weights" as UC28
+    usecase "UC-29 View System Logs" as UC29
+    usecase "UC-30 Manage User Accounts" as UC30
+  }
+
+  package "AI-assisted Flows" {
+    usecase "UC-31 Explain Score with AI" as UC31
+    usecase "UC-32 Ask Context-aware Chatbot" as UC32
+    usecase "UC-33 Capture Explanation Feedback" as UC33
+  }
+}
+
+User --> UC01
+User --> UC03
+User --> UC04
+User --> UC05
+User --> UC06
+User --> UC07
+User --> UC08
+User --> UC09
+User --> UC10
+User --> UC11
+User --> UC12
+User --> UC13
+User --> UC14
+User --> UC15
+User --> UC16
+User --> UC17
+User --> UC18
+User --> UC19
+User --> UC20
+User --> UC21
+User --> UC22
+User --> UC23
+User --> UC24
+
+Backend --> UC25
+Backend --> UC26
+Backend --> UC27
+Backend --> UC28
+Backend --> UC29
+Backend --> UC30
+
+External --> UC10
+External --> UC11
+External --> UC13
+External --> UC14
+External --> UC25
+External --> UC26
+
+AI --> UC31
+AI --> UC32
+AI --> UC33
+
+UC01 ..> UC02 : <<include>>
+UC05 ..> UC03 : <<include>>
+UC06 ..> UC07 : <<include>>
+UC08 ..> UC07 : <<include>>
+UC13 ..> UC10 : <<include>>
+UC13 ..> UC22 : <<include>>
+UC20 ..> UC17 : <<include>>
+UC21 ..> UC20 : <<include>>
+UC15 ..> UC13 : <<extend>>
+UC18 ..> UC17 : <<extend>>
+UC12 ..> UC10 : <<extend>>
+UC31 ..> UC15 : <<extend>>
+UC32 ..> UC10 : <<extend>>
+UC32 ..> UC17 : <<extend>>
+UC32 ..> UC20 : <<extend>>
+UC33 ..> UC31 : <<include>>
+
+note bottom
+Master use case model for Lab 3 deliverable.
+Feature-specific use case diagrams remain as supporting views.
+System behavior is aligned to frontend pages and backend routes.
+end note
+
+@enduml

@@ -1,0 +1,64 @@
+@startuml
+title Portfolio Page, View Details and Manage Notes (Sequence)
+
+actor "User (SME)" as User
+boundary "PortfolioDashboardPage" as UI_Dash
+boundary "LocationDetailsPage" as UI_Details
+boundary "NotesPanel" as UI_Notes
+
+control "PortfolioController" as C_Portfolio
+control "LocationController" as C_Location
+control "NotesController" as C_Notes
+
+entity "SavedLocation" as E_Saved
+entity "Location" as E_Location
+entity "LocationScore" as E_Score
+entity "ScoreBreakdown" as E_Breakdown
+entity "Note" as E_Note
+
+== Load portfolio ==
+User -> UI_Dash : Open Portfolio
+UI_Dash -> C_Portfolio : getPortfolioLocations(userId)
+C_Portfolio -> E_Saved : findByUser(userId)
+E_Saved --> C_Portfolio : savedLocations[]
+C_Portfolio --> UI_Dash : savedLocations[]
+
+== Select a saved location ==
+User -> UI_Dash : Select location (savedLocationId)
+UI_Dash -> C_Location : getLocationDetails(savedLocationId)
+
+C_Location -> E_Saved : findById(savedLocationId)
+E_Saved --> C_Location : savedLocation
+
+C_Location -> E_Location : findById(savedLocation.locationId)
+E_Location --> C_Location : location
+
+C_Location -> E_Score : getScore(savedLocationId)
+E_Score --> C_Location : compositeScore
+
+C_Location -> E_Breakdown : getBreakdown(savedLocationId)
+E_Breakdown --> C_Location : breakdown
+
+C_Location --> UI_Details : location + score + breakdown
+
+== Add note (optional) ==
+User -> UI_Notes : Add note(text)
+UI_Notes -> C_Notes : addNote(savedLocationId, text)
+C_Notes -> E_Note : create(savedLocationId, text)
+E_Note --> C_Notes : note
+C_Notes --> UI_Notes : note added
+
+== Edit note (optional) ==
+User -> UI_Notes : Edit note(noteId, newText)
+UI_Notes -> C_Notes : editNote(noteId, newText)
+C_Notes -> E_Note : update(noteId, newText)
+E_Note --> C_Notes : updatedNote
+C_Notes --> UI_Notes : note updated
+
+== Delete note (optional) ==
+User -> UI_Notes : Delete note(noteId)
+UI_Notes -> C_Notes : deleteNote(noteId)
+C_Notes -> E_Note : delete(noteId)
+C_Notes --> UI_Notes : note deleted
+
+@enduml

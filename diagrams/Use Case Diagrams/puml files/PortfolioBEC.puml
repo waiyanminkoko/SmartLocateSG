@@ -1,0 +1,52 @@
+@startuml
+left to right direction
+
+class "User (SME)" as User <<actor>>
+
+package "Portfolio UI (Boundary)" {
+  class "PortfolioDashboardPage" as B_Dashboard <<boundary>>
+  class "LocationDetailsPage" as B_Details <<boundary>>
+  class "NotesPanel" as B_Notes <<boundary>>
+  class "MapPage" as B_Map <<boundary>>
+}
+
+package "Portfolio Logic (Control)" {
+  class "PortfolioController" as C_Portfolio <<control>>
+  class "LocationController" as C_Location <<control>>
+  class "NotesController" as C_Notes <<control>>
+  class "MapController" as C_Map <<control>>
+}
+
+package "Domain Data (Entity)" {
+  class "UserAccount" as E_User <<entity>>
+  class "SavedLocation" as E_Saved <<entity>>
+  class "LocationScore" as E_Score <<entity>>
+  class "ScoreBreakdown" as E_Breakdown <<entity>>
+  class "Note" as E_Note <<entity>>
+  class "BusinessProfile" as E_Profile <<entity>>
+}
+
+' User interactions with boundaries
+User --> B_Dashboard
+User --> B_Details
+User --> B_Notes
+User --> B_Map
+
+' Boundaries call controls
+B_Dashboard --> C_Portfolio : view/search/select
+B_Details --> C_Location : load details
+B_Notes --> C_Notes : add/edit/delete note
+B_Map --> C_Map : open map
+
+' Controls use entities
+C_Portfolio --> E_User
+C_Portfolio --> E_Saved
+C_Location --> E_Saved
+C_Location --> E_Score
+C_Location --> E_Breakdown
+C_Notes --> E_Note
+C_Notes --> E_Saved
+C_Map --> E_Saved
+C_Map --> E_Profile
+
+@enduml

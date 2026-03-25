@@ -1,0 +1,262 @@
+@startuml UC-01 Register Account
+title UC-01: Register Account
+
+skinparam sequenceArrowThickness 2
+skinparam roundcorner 10
+skinparam sequenceParticipant underline
+skinparam defaultFontName Georgia
+skinparam defaultFontSize 11
+
+actor "User\n(A01/A02/A03)" as User
+participant "Frontend\n(React)" as FE
+participant "Backend\n(A04)" as A04
+database "Database" as DB
+participant "Email Service\n(A05)" as A05
+
+User -> FE : Open registration page
+FE -> User : Display registration form
+
+User -> FE : Enter email, password,\nconfirm password, user type
+FE -> A04 : POST /api/auth/register\n{email, password, userType}
+
+A04 -> A04 : Validate inputs\n(email format, password strength,\nrequired fields)
+A04 -> DB : SELECT * FROM users WHERE email = ?
+DB --> A04 : Result (empty = unique)
+
+alt Email already registered [UC-01.AC.1]
+    A04 --> FE : 409 Conflict\n{error: "Email already registered"}
+    FE --> User : Show error + "Try logging in" suggestion
+else Password policy not met [UC-01.AC.2]
+    A04 --> FE : 422 Unprocessable Entity\n{errors: [policy violations]}
+    FE --> User : Highlight unmet password rules
+else Valid input
+    A04 -> DB : INSERT INTO users\n(email, hashed_password, user_type,\nstatus="pending")
+    DB --> A04 : User record created
+
+    A04 -> A04 : Generate verification token\n(UUID, 24hr expiry)
+    A04 -> DB : INSERT INTO verification_tokens\n(user_id, token, expires_at)
+    DB --> A04 : Token stored
+
+    A04 -> A05 : Send verification email\n(to: email, token: token)
+    alt Email service unavailable [UC-01.EX.1]
+        A05 --> A04 : Error / Timeout
+        A04 -> A04 : Log error
+        A04 --> FE : 503 Service Unavailable\n{error: "Could not send verification email"}
+        FE --> User : Show error + Retry option
+    else Email sent successfully
+        A05 --> A04 : Email sent confirmation
+        A04 --> FE : 201 Created\n{message: "Check your email"}
+        FE --> User : Display "Check your email" confirmation
+    end
+end
+
+@enduml
+
+@startuml UC-02 Verify Email
+title UC-02: Verify Email
+
+skinparam sequenceArrowThickness 2
+skinparam roundcorner 10
+skinparam defaultFontName Georgia
+skinparam defaultFontSize 11
+
+actor "User\n(A01/A02/A03)" as User
+participant "Email Client" as Email
+participant "Frontend\n(React)" as FE
+participant "Backend\n(A04)" as A04
+database "Database" as DB
+
+User -> Email : Open verification email
+Email -> User : Display verification link
+
+User -> FE : Click verification link\n(GET /verify?token=<token>)
+FE -> A04 : GET /api/auth/verify?token=<token>
+
+A04 -> DB : SELECT * FROM verification_tokens\nWHERE token = ?
+DB --> A04 : Token record
+
+alt Token not found or invalid [UC-02.EX.1]
+    A04 --> FE : 400 Bad Request\n{error: "Invalid verification token"}
+    FE --> User : Show error message\n+ "Resend verification email" option
+else Token expired [UC-02.EX.1]
+    A04 -> A04 : Check expires_at < NOW()
+    A04 --> FE : 400 Bad Request\n{error: "Verification link has expired"}
+    FE --> User : Show expiry error\n+ "Resend verification email" option
+else Token valid
+    A04 -> DB : UPDATE users SET status = "active"\nWHERE id = token.user_id
+    DB --> A04 : User record updated
+
+    A04 -> DB : DELETE FROM verification_tokens\nWHERE token = ?
+    DB --> A04 : Token invalidated
+
+    A04 --> FE : 200 OK\n{message: "Email verified successfully"}
+    FE --> User : Show success message\n+ "Log In" link
+end
+
+@enduml
+
+@startuml UC-03 Log In
+title UC-03: Log In
+
+skinparam sequenceArrowThickness 2
+skinparam roundcorner 10
+skinparam defaultFontName Georgia
+skinparam defaultFontSize 11
+
+actor "User\n(A01/A02/A03)" as User
+participant "Frontend\n(React)" as FE
+participant "Backend\n(A04)" as A04
+database "Database" as DB
+database "Session Store\n(Redis/DB)" as SS
+
+User -> FE : Open login page
+FE --> User : Display login form
+
+User -> FE : Enter email and password
+FE -> A04 : POST /api/auth/login\n{email, password}
+
+A04 -> DB : SELECT * FROM users WHERE email = ?
+DB --> A04 : User record (or null)
+
+alt User not found or wrong password [UC-03.AC.1]
+    A04 -> A04 : bcrypt.compare(password, hash)\nreturns false OR user not found
+    A04 --> FE : 401 Unauthorized\n{error: "Invalid email or password"}
+    FE --> User : Show generic authentication error
+else Account not yet verified [UC-03.AC.2]
+    A04 -> A04 : Check user.status == "pending"
+    A04 --> FE : 403 Forbidden\n{error: "Please verify your email first"}
+    FE --> User : Prompt to verify email\nor resend verification
+else Session store unavailable [UC-03.EX.1]
+    A04 -> SS : Store session token
+    SS --> A04 : Error / Timeout
+    A04 -> A04 : Log error
+    A04 --> FE : 503 Service Unavailable\n{error: "Service temporarily unavailable"}
+    FE --> User : Show service unavailable message
+else Valid credentials, account active
+    A04 -> A04 : bcrypt.compare(password, stored_hash)\nreturns true
+    A04 -> A04 : Check user.status == "active"
+    A04 -> A04 : Generate session token (cryptographically random)
+    A04 -> SS : STORE session:{token} → {user_id, expires_at}
+    SS --> A04 : Session stored
+
+    A04 --> FE : 200 OK\n{sessionToken} + Set-Cookie (HttpOnly, Secure)
+    FE -> FE : Store session token
+    FE --> User : Redirect to Dashboard
+end
+
+@enduml
+
+@startuml UC-04 Log Out
+title UC-04: Log Out
+
+skinparam sequenceArrowThickness 2
+skinparam roundcorner 10
+skinparam defaultFontName Georgia
+skinparam defaultFontSize 11
+
+actor "User\n(A01/A02/A03)" as User
+participant "Frontend\n(React)" as FE
+participant "Backend\n(A04)" as A04
+database "Session Store\n(Redis/DB)" as SS
+
+User -> FE : Click "Log Out" in user menu
+FE -> A04 : POST /api/auth/logout\n(with session token cookie)
+
+A04 -> SS : DELETE session:{token}
+
+alt Session store unavailable [UC-04.EX.1]
+    SS --> A04 : Error / Timeout
+    A04 -> A04 : Log error
+    note over A04 : Proceed regardless —\nclient-side cookie still cleared
+end
+
+A04 -> A04 : Clear any user-specific cache
+A04 --> FE : 200 OK\n+ Clear-Cookie header
+
+FE -> FE : Clear local session state
+FE --> User : Redirect to Login page
+
+note over FE, A04 : All protected routes are\ninaccessible immediately after\nsession invalidation
+
+@enduml
+
+@startuml UC-05 Reset Password
+title UC-05: Reset Password (Forgot Password)
+
+skinparam sequenceArrowThickness 2
+skinparam roundcorner 10
+skinparam defaultFontName Georgia
+skinparam defaultFontSize 11
+
+actor "User\n(A01/A02/A03)" as User
+participant "Frontend\n(React)" as FE
+participant "Backend\n(A04)" as A04
+database "Database" as DB
+participant "Email Service\n(A05)" as A05
+
+== Phase 1: Request Reset ==
+
+User -> FE : Click "Forgot Password"
+FE --> User : Display email entry form
+
+User -> FE : Enter registered email address
+FE -> A04 : POST /api/auth/forgot-password\n{email}
+
+A04 -> DB : SELECT * FROM users WHERE email = ?
+DB --> A04 : User record (or null)
+
+note over A04 : Security: Always return\ngeneric "check your email"\nmessage regardless of result
+
+alt Email not found [UC-05.AC.1]
+    A04 --> FE : 200 OK\n{message: "If that email exists, a link has been sent"}
+    FE --> User : Show generic "check email" message
+else Email service unavailable [UC-05.EX.1]
+    A04 -> A04 : Generate reset token (1hr expiry)
+    A04 -> DB : INSERT INTO reset_tokens\n(user_id, token, expires_at)
+    A04 -> A05 : Send reset email\n(to: email, reset_link)
+    A05 --> A04 : Error / Timeout
+    A04 -> A04 : Log error
+    A04 --> FE : 503 Service Unavailable\n{error: "Could not send reset email. Try again later."}
+    FE --> User : Show error + retry option
+else Email found, service available
+    A04 -> A04 : Generate password reset token\n(UUID, 1hr expiry)
+    A04 -> DB : INSERT INTO reset_tokens\n(user_id, token, expires_at)
+    DB --> A04 : Token stored
+    A04 -> A05 : Send reset email\n(to: email, reset_link with token)
+    A05 --> A04 : Email sent
+    A04 --> FE : 200 OK\n{message: "Check your email"}
+    FE --> User : Show "Check your email" message
+end
+
+== Phase 2: Submit New Password ==
+
+User -> FE : Click reset link in email\n(GET /reset-password?token=<token>)
+FE -> A04 : GET /api/auth/validate-reset-token?token=<token>
+
+A04 -> DB : SELECT * FROM reset_tokens\nWHERE token = ? AND expires_at > NOW()
+DB --> A04 : Token record
+
+alt Token invalid or expired [UC-05.AC.2]
+    A04 --> FE : 400 Bad Request\n{error: "Reset link expired or invalid"}
+    FE --> User : Show error + "Resend reset email" option
+else Token valid
+    A04 --> FE : 200 OK\n{valid: true}
+    FE --> User : Display new password entry form
+
+    User -> FE : Enter and confirm new password
+    FE -> A04 : POST /api/auth/reset-password\n{token, newPassword}
+
+    A04 -> A04 : Validate password\nmeets policy requirements
+
+    A04 -> A04 : bcrypt.hash(newPassword)
+    A04 -> DB : UPDATE users SET\nhashed_password = ? WHERE id = token.user_id
+    DB --> A04 : Password updated
+
+    A04 -> DB : DELETE FROM reset_tokens\nWHERE token = ?
+    DB --> A04 : Token invalidated
+
+    A04 --> FE : 200 OK\n{message: "Password reset successful"}
+    FE --> User : Redirect to Login page
+end
+
+@enduml

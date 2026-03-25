@@ -1,0 +1,217 @@
+@startuml SmartLocateSG_DesignClassDiagram_Master
+left to right direction
+skinparam classAttributeIconSize 0
+skinparam linetype ortho
+
+package "Boundary" {
+  class AppStartup <<boundary>> {
+    +bootstrap(): void
+  }
+  class AuthUI <<boundary>> {
+    +register(): void
+    +login(): void
+    +logout(): void
+  }
+  class ProfilesUI <<boundary>> {
+    +createProfile(): void
+    +editProfile(): void
+    +deleteProfile(): void
+    +setActiveProfile(): void
+  }
+  class MapUI <<boundary>> {
+    +toggleOverlay(): void
+    +toggleLayer(): void
+    +dropPin(): void
+    +requestScore(): void
+    +openWeightPanel(): void
+    +saveToPortfolio(): void
+  }
+  class PortfolioUI <<boundary>> {
+    +listSites(): void
+    +editNotes(): void
+    +deleteSite(): void
+  }
+  class CompareUI <<boundary>> {
+    +selectSites(): void
+    +compare(): void
+    +exportPdf(): void
+  }
+  class AdminUI <<boundary>> {
+    +viewDataStatus(): void
+    +runRefresh(): void
+    +manageConfig(): void
+  }
+}
+
+package "Control" {
+  class AuthController <<control>>
+  class ProfileController <<control>>
+  class MapController <<control>>
+  class ScoringController <<control>>
+  class PortfolioController <<control>>
+  class CompareController <<control>>
+  class AdminController <<control>>
+  class ExplanationController <<control>>
+  class ChatbotController <<control>>
+
+  class ScoreEngine <<control>> {
+    +computeComposite(): number
+    +computeDimensionScores(): Map<String, number>
+  }
+
+  class ETLCoordinator <<control>> {
+    +refreshDataSources(): void
+    +updateAreaProfiles(): void
+  }
+}
+
+package "Entity" {
+  class User <<entity>> {
+    +id: string
+    +username: string
+    +passwordHash: string
+  }
+
+  class BusinessProfile <<entity>> {
+    +id: string
+    +userId: string
+    +businessName: string
+    +sector: string
+    +priceBand: string
+    +targetAgeGroupsJson: json
+    +targetIncomeBandsJson: json
+    +operatingModel: string
+    +isActive: int
+  }
+
+  class CandidateSite <<entity>> {
+    +id: string
+    +userId: string
+    +profileId: string
+    +siteName: string
+    +lat: number
+    +lng: number
+    +planningAreaId: string
+    +savedSiteScoreId: string
+    +notes: text
+  }
+
+  class SiteScore <<entity>> {
+    +id: string
+    +compositeScore: number
+    +demographicScore: number
+    +accessibilityScore: number
+    +rentalPressureScore: number
+    +competitionScore: number
+    +breakdownDetailsJson: json
+    +computedAt: datetime
+  }
+
+  class PlanningArea <<entity>> {
+    +id: string
+    +areaName: string
+    +areaCode: string
+    +regionName: string
+    +geometryGeojson: text
+  }
+
+  class AreaDemographics <<entity>> {
+    +id: string
+    +planningAreaId: string
+    +effectiveYear: int
+    +populationTotal: int
+    +ageDistributionJson: json
+    +incomeDistributionJson: json
+  }
+
+  class ExplanationFeedback <<entity>> {
+    +page: string
+    +profileId: string
+    +siteId: string
+    +criterion: string
+    +vote: string
+  }
+
+  class WeightConfig <<entity>> {
+    +profileId: string
+    +demographicWeight: int
+    +accessibilityWeight: int
+    +rentalWeight: int
+    +competitionWeight: int
+  }
+}
+
+package "Persistence" {
+  class UserRepository <<repository>>
+  class ProfileRepository <<repository>>
+  class SiteRepository <<repository>>
+  class ScoreRepository <<repository>>
+  class PlanningAreaRepository <<repository>>
+  class DemographicsRepository <<repository>>
+  class FeedbackRepository <<repository>>
+}
+
+package "Container Classes" {
+  class ProfileCatalog <<container>> {
+    +profiles: List<BusinessProfile>
+  }
+  class CandidateSiteCollection <<container>> {
+    +sites: List<CandidateSite>
+  }
+  class ComparisonSet <<container>> {
+    +selected: List<CandidateSite>
+  }
+}
+
+AppStartup --> AuthController
+AppStartup --> ProfileController
+AppStartup --> MapController
+
+AuthUI --> AuthController
+ProfilesUI --> ProfileController
+MapUI --> MapController
+MapUI --> ScoringController
+MapUI --> ExplanationController
+MapUI --> ChatbotController
+PortfolioUI --> PortfolioController
+CompareUI --> CompareController
+AdminUI --> AdminController
+
+ProfileController --> ProfileRepository
+ProfileController --> UserRepository
+MapController --> PlanningAreaRepository
+MapController --> DemographicsRepository
+MapController --> ScoreRepository
+ScoringController --> ScoreEngine
+ScoringController --> ScoreRepository
+PortfolioController --> SiteRepository
+PortfolioController --> ScoreRepository
+CompareController --> SiteRepository
+AdminController --> ETLCoordinator
+AdminController --> PlanningAreaRepository
+AdminController --> DemographicsRepository
+ExplanationController --> FeedbackRepository
+ChatbotController --> FeedbackRepository
+
+User "1" -- "0..*" BusinessProfile : owns
+User "1" -- "0..*" CandidateSite : saves
+BusinessProfile "1" -- "0..*" CandidateSite : contains
+CandidateSite "0..*" -- "0..1" SiteScore : snapshot
+PlanningArea "1" -- "0..*" CandidateSite : contains
+PlanningArea "1" -- "0..*" AreaDemographics : has
+BusinessProfile "1" -- "0..*" WeightConfig : presets
+SiteScore "1" -- "0..*" ExplanationFeedback : ratedBy
+
+ProfileCatalog o-- BusinessProfile
+CandidateSiteCollection o-- CandidateSite
+ComparisonSet o-- CandidateSite
+
+note bottom
+Patterns used:
+- MVC/BCE separation (Boundary, Control, Entity)
+- Repository pattern for persistence access
+- Strategy-like scoring via ScoreEngine + WeightConfig
+This is the primary Lab 3 design class diagram.
+end note
+
+@enduml

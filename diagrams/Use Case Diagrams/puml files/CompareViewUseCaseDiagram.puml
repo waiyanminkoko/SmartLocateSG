@@ -1,0 +1,36 @@
+@startuml
+left to right direction
+
+actor "User (SME)" as User
+
+rectangle "SmartLocate SG\nComparison Module" {
+
+  usecase "Open Compare page" as UC_OpenCompare
+
+  usecase "Select locations to compare\n(min 2)" as UC_Select
+  usecase "Set comparison criteria\n(weights, business profile)" as UC_Criteria
+
+  usecase "View comparison results\n(ranking, score deltas)" as UC_ViewResults
+  usecase "View breakdown per location\n(demographics, access,\nrental, competition)" as UC_Breakdown
+
+  usecase "View compared locations\non map" as UC_Map
+  usecase "Remove location from comparison" as UC_Remove
+  usecase "Swap comparison order\n(optional)" as UC_Swap
+}
+
+User --> UC_OpenCompare
+User --> UC_ViewResults
+User --> UC_Map
+
+' Core flow
+UC_OpenCompare ..> UC_Select : <<include>>
+UC_ViewResults ..> UC_Select : <<include>>
+
+' Optional refinements
+UC_Criteria ..> UC_ViewResults : <<extend>>
+UC_Breakdown ..> UC_ViewResults : <<extend>>
+UC_Map ..> UC_ViewResults : <<extend>>
+UC_Remove ..> UC_ViewResults : <<extend>>
+UC_Swap ..> UC_ViewResults : <<extend>>
+
+@enduml

@@ -1,0 +1,67 @@
+@startuml SmartLocateSG_DialogMap_Master
+!theme plain
+skinparam backgroundColor #FAFAFA
+skinparam state {
+  BackgroundColor #E8EAF6
+  BorderColor #3949AB
+  FontColor #1A237E
+}
+
+title SmartLocateSG - Dialog Map (Master)
+
+state "UNAUTHENTICATED" as UA {
+  [*] --> Landing
+  Landing --> Register : Get Started
+  Landing --> Login : Log In
+  Register --> VerifyPending : Submit (UC-01)
+  VerifyPending --> Login : Email verified (UC-02)
+  Login --> ForgotPW : Forgot Password (UC-05)
+  ForgotPW --> Login : Reset success
+}
+
+state "AUTHENTICATED" as AU {
+  [*] --> Dashboard
+
+  Dashboard --> ProfilesList : Nav
+  ProfilesList --> ProfileWizard : Create New / Edit
+  ProfileWizard --> ProfilesList : Save / Cancel (UC-06/UC-08)
+  ProfilesList --> DeleteProfileConfirm : Delete
+  DeleteProfileConfirm --> ProfilesList : Confirm / Cancel (UC-09)
+
+  Dashboard --> MapIdle : Nav
+  MapIdle --> Scoring : Drop pin / search (UC-13)
+  Scoring --> ScoreShown : Scores ready
+  ScoreShown --> WeightPanel : Adjust Weights (UC-23)
+  WeightPanel --> ScoreShown : Apply / Reset / Cancel (UC-24)
+  ScoreShown --> ExplanationPanel : Explain Score (UC-15)
+  ExplanationPanel --> ScoreShown : Close
+  MapIdle --> AreaDetails : Select planning area (UC-14)
+  AreaDetails --> MapIdle : Close
+  ScoreShown --> SaveSiteDialog : Save to Portfolio (UC-16)
+  SaveSiteDialog --> PortfolioList : Saved
+
+  Dashboard --> PortfolioList : Nav
+  PortfolioList --> EditNotes : Edit Notes (UC-18)
+  EditNotes --> PortfolioList : Save / Cancel
+  PortfolioList --> DeleteSiteConfirm : Delete
+  DeleteSiteConfirm --> PortfolioList : Confirm / Cancel (UC-19)
+
+  Dashboard --> CompareSelect : Nav
+  CompareSelect --> CompareView : Compare selected (UC-20)
+  CompareView --> ExportPDF : Export (UC-21)
+  ExportPDF --> CompareView : Done / Error
+
+  Dashboard --> AdminStatus : Admin Nav
+  AdminStatus --> AdminRefresh : Run ETL (UC-25)
+  AdminRefresh --> AdminStatus : Completed / Warning
+}
+
+UA --> AU : Login success (UC-03)
+AU --> UA : Log Out (UC-04) / session timeout
+
+legend bottom
+Master dialog map aligned to current frontend routes and key UI states.
+Feature-specific sequence diagrams remain as detailed behavioral references.
+endlegend
+
+@enduml

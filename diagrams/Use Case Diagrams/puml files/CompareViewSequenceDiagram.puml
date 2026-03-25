@@ -1,0 +1,34 @@
+@startuml
+title SmartLocate SG - Compare View Sequence
+
+actor "User" as User
+boundary "ComparePage" as UI
+control "CompareController" as CompareCtl
+control "ExportController" as ExportCtl
+entity "CandidateSiteRepository" as SiteRepo
+entity "ScoreRepository" as ScoreRepo
+
+== Open compare page ==
+User -> UI : Open Compare page
+UI -> CompareCtl : listCandidateSites(userId)
+CompareCtl -> SiteRepo : findByUser(userId)
+SiteRepo --> CompareCtl : sites[]
+CompareCtl --> UI : sites[]
+
+== Compare selected sites ==
+User -> UI : Select 2-3 sites and click Compare
+UI -> CompareCtl : buildComparison(siteIds)
+CompareCtl -> CompareCtl : validateSelection(siteIds)
+CompareCtl -> SiteRepo : findByIds(userId, siteIds)
+SiteRepo --> CompareCtl : selectedSites[]
+CompareCtl -> ScoreRepo : findBySiteIds(siteIds)
+ScoreRepo --> CompareCtl : scoreSnapshots[]
+CompareCtl --> UI : comparisonTable + chartData
+
+== Optional export ==
+User -> UI : Export PDF
+UI -> ExportCtl : exportComparisonPdf(comparisonResult)
+ExportCtl --> UI : pdfBlob
+UI --> User : Browser download starts
+
+@enduml

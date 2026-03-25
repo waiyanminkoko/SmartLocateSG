@@ -1,0 +1,67 @@
+@startuml dashboard_showdata
+title UC – Dashboard (Show Data)
+
+left to right direction
+skinparam usecase {
+  BackgroundColor #DDE8F5
+  BorderColor #4472C4
+  ArrowColor #111111
+  ActorBorderColor #111111
+  ActorBackgroundColor White
+}
+skinparam defaultFontName Georgia
+skinparam defaultFontSize 11
+skinparam shadowing false
+
+actor "User\n(A01, A02, A03)" as User
+actor "System\n(A04)" as System
+
+rectangle "SmartLocate SG" {
+
+  usecase "UC-26\nView Data Update Status\n(System Data)" as UC26
+  usecase "UC-07\nView Business Profiles\n(Recent / Summary)" as UC07
+  usecase "UC-17\nView Portfolio\n(Recent / Summary)" as UC17
+
+  usecase "Retrieve ETL Logs\n& Timestamps" as ETLLogs #F0F4FB
+  usecase "Retrieve Recent\nBusiness Profiles" as RecentProfiles #F0F4FB
+  usecase "Retrieve Recent\nCandidate Sites" as RecentSites #F0F4FB
+
+}
+
+' User initiates dashboard views
+User --> UC26
+User --> UC07
+User --> UC17
+
+' System serves all retrieval requests
+System --> UC26
+System --> UC07
+System --> UC17
+
+' Include relationships (mandatory sub-processes)
+UC26 .> ETLLogs : <<include>>
+UC07 .> RecentProfiles : <<include>>
+UC17 .> RecentSites : <<include>>
+
+note right of UC26
+  Users and System access dashboard to view
+  data freshness status. A04 retrieves latest
+  ETL job logs, computes staleness warnings
+  (if > 30 days old), and returns status summary.
+end note
+
+note right of UC07
+  Displays a summary list of the user's
+  recently created or updated business
+  profiles. Provides quick-access CTAs
+  to create or manage profiles.
+end note
+
+note right of UC17
+  Displays a summary of recently saved
+  candidate sites. Provides quick-access
+  CTA to open full portfolio or
+  compare sites (disabled if < 2 sites).
+end note
+
+@enduml

@@ -1,0 +1,127 @@
+@startuml
+title SmartLocate SG, Portfolio Module (Class Diagram)
+skinparam classAttributeIconSize 0
+
+package "Portfolio Module" {
+
+  class UserAccount {
+    +userId: long
+    +name: String
+    +email: String
+    +status: String
+  }
+
+  class BusinessProfile {
+    +profileId: long
+    +userId: long
+    +profileName: String
+    +sectorCode: String
+    +bandCode: String
+    +relianceCode: String
+    +activeWeightConfigId: long
+  }
+
+  class WeightConfig {
+    +weightConfigId: long
+    +profileId: long
+    +weightsJson: String
+    +createdAt: DateTime
+  }
+
+  class Location {
+    +locationId: long
+    +name: String
+    +address: String
+    +postalCode: String
+    +latitude: double
+    +longitude: double
+    +planningArea: String
+  }
+
+  class SavedLocation {
+    +savedLocationId: long
+    +userId: long
+    +locationId: long
+    +profileId: long
+    +savedAt: DateTime
+    +lastViewedAt: DateTime
+  }
+
+  class LocationScore {
+    +scoreId: long
+    +savedLocationId: long
+    +compositeScore: double
+    +computedAt: DateTime
+    +methodVersion: String
+  }
+
+  class ScoreBreakdown {
+    +breakdownId: long
+    +savedLocationId: long
+    +demographicsScore: double
+    +accessScore: double
+    +rentalScore: double
+    +competitionScore: double
+    +detailsJson: String
+  }
+
+  class Note {
+    +noteId: long
+    +savedLocationId: long
+    +text: String
+    +createdAt: DateTime
+    +updatedAt: DateTime
+  }
+
+  class PortfolioController <<control>> {
+    +getPortfolioLocations(userId): List<SavedLocation>
+    +searchPortfolio(userId, query): List<SavedLocation>
+    +deleteSavedLocation(savedLocationId): void
+  }
+
+  class LocationController <<control>> {
+    +getLocationDetails(savedLocationId): LocationDetailsDTO
+  }
+
+  class NotesController <<control>> {
+    +addNote(savedLocationId, text): Note
+    +editNote(noteId, text): Note
+    +deleteNote(noteId): void
+    +listNotes(savedLocationId): List<Note>
+  }
+
+  class MapController <<control>> {
+    +getMapView(savedLocationId): MapViewDTO
+  }
+
+  class PortfolioDashboardPage <<boundary>>
+  class LocationDetailsPage <<boundary>>
+  class NotesPanel <<boundary>>
+  class MapPage <<boundary>>
+}
+
+UserAccount "1" o-- "0..*" BusinessProfile
+BusinessProfile "1" o-- "0..*" WeightConfig
+
+UserAccount "1" o-- "0..*" SavedLocation
+SavedLocation "*" --> "1" Location
+
+BusinessProfile "1" <-- "0..*" SavedLocation : computedFor
+SavedLocation "1" o-- "0..1" LocationScore
+SavedLocation "1" o-- "0..1" ScoreBreakdown
+SavedLocation "1" o-- "0..*" Note
+
+PortfolioDashboardPage --> PortfolioController
+LocationDetailsPage --> LocationController
+NotesPanel --> NotesController
+MapPage --> MapController
+
+PortfolioController --> SavedLocation
+LocationController --> SavedLocation
+LocationController --> Location
+LocationController --> LocationScore
+LocationController --> ScoreBreakdown
+NotesController --> Note
+MapController --> Location
+
+@enduml

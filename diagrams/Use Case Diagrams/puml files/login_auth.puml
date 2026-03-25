@@ -1,0 +1,82 @@
+@startuml login_auth
+title UC – Login / Forgot Password (Authentication)
+
+left to right direction
+skinparam usecase {
+  BackgroundColor #DDE8F5
+  BorderColor #4472C4
+  ArrowColor #111111
+  ActorBorderColor #111111
+  ActorBackgroundColor White
+}
+skinparam defaultFontName Georgia
+skinparam defaultFontSize 11
+skinparam shadowing false
+
+actor "User\n(A01, A02, A03)" as User
+actor "System\n(A04)" as System
+actor "Email Service\n(A05)" as EmailService
+
+rectangle "Auth System" {
+
+  usecase "UC-01\nRegister Account" as UC01
+  usecase "UC-02\nVerify Email" as UC02
+  usecase "UC-03\nLog In" as UC03
+  usecase "UC-04\nLog Out" as UC04
+  usecase "UC-05\nReset Password\n(Forgot Password)" as UC05
+
+  usecase "Send Verification\nEmail" as SendVerif #F0F4FB
+  usecase "Validate Token" as ValidToken #F0F4FB
+  usecase "Activate Account" as ActivateAcc #F0F4FB
+  usecase "Send Password\nReset Email" as SendReset #F0F4FB
+
+}
+
+' User initiates all main flows
+User --> UC01
+User --> UC02
+User --> UC03
+User --> UC04
+User --> UC05
+
+' System participates in all flows
+System --> UC01
+System --> UC02
+System --> UC03
+System --> UC04
+System --> UC05
+
+' Email service involved in verification and reset
+EmailService --> SendVerif
+EmailService --> SendReset
+
+' Include relationships (mandatory sub-processes)
+UC01 .> SendVerif : <<include>>
+UC02 .> ValidToken : <<include>>
+UC02 .> ActivateAcc : <<include>>
+UC05 .> SendReset : <<include>>
+
+' Extend relationship (optional - after reset, redirect to login)
+UC05 .> UC03 : <<extend>>
+
+note right of UC01
+  User submits email, password, and user type.
+  System enforces password policy and checks
+  email uniqueness before creating a pending
+  account awaiting verification.
+end note
+
+note right of UC02
+  User follows the verification link with a token.
+  System validates token integrity/expiry and marks
+  the pending account as active on success.
+  Failed tokens offer a resend option.
+end note
+
+note bottom of UC05
+  User requests reset; System sends token via
+  Email Service. Token expires in 1 hour.
+  On success, redirects to login page.
+end note
+
+@enduml

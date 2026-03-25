@@ -1,0 +1,398 @@
+@startuml UC-10 View Interactive Map
+title UC-10: View Interactive Map
+
+skinparam sequenceArrowThickness 2
+skinparam roundcorner 10
+skinparam defaultFontName Georgia
+skinparam defaultFontSize 11
+
+actor "User\n(A01/A02/A03)" as User
+participant "Frontend\n(React)" as FE
+participant "Backend\n(A04)" as A04
+database "Database" as DB
+participant "Map Provider\n(A05 — Google Maps)" as MapProvider
+
+User -> FE : Open Map screen
+
+FE -> MapProvider : Load base map tiles\n(Google Maps JS API init)
+
+alt Map provider unavailable [UC-10.EX.1]
+    MapProvider --> FE : Error / Timeout
+    A04 -> A04 : Detect failure
+    FE --> User : Show "Map unavailable" error\n+ Retry button
+else Map tiles loaded
+    MapProvider --> FE : Base map tiles served
+    FE --> User : Render base map (centred on Singapore)
+
+    FE -> A04 : GET /api/profiles\n(fetch user's business profiles)
+    A04 -> DB : SELECT * FROM business_profiles\nWHERE user_id = ?
+    DB --> A04 : Profile list
+    A04 --> FE : 200 OK {profiles: [...]}
+    FE --> User : Populate profile selector\nwith user's profiles
+
+    FE -> A04 : GET /api/map/overlay?profileId=<id>&type=composite
+    A04 -> DB : SELECT area_scores FROM area_profiles\nWHERE profile_id = ?\n(cached composite score by planning area)
+    DB --> A04 : Area score data (GeoJSON + scores)
+
+    A04 -> A04 : Compute choropleth colour values\nfor each planning area polygon
+
+    A04 --> FE : 200 OK {overlayGeoJSON, scoreRange}
+    FE --> User : Render composite score\nchoropleth overlay on map\n+ Layer controls + Search bar
+end
+
+@enduml
+
+@startuml UC-11 Toggle Map Layers
+title UC-11: Toggle Map Layers
+
+skinparam sequenceArrowThickness 2
+skinparam roundcorner 10
+skinparam defaultFontName Georgia
+skinparam defaultFontSize 11
+
+actor "User\n(A01/A02/A03)" as User
+participant "Frontend\n(React)" as FE
+participant "Backend\n(A04)" as A04
+database "Database\n(Cached Geo Data)" as DB
+
+User -> FE : Open layer control panel
+FE --> User : Display layer toggles:\n☐ MRT Stations  ☐ MRT Exits\n☐ Bus Stops  ☐ Planning Areas
+
+User -> FE : Toggle a layer checkbox\n(e.g., enable "MRT Stations")
+
+FE -> A04 : GET /api/layers/{layerType}\n(e.g., layerType = mrt_stations)
+
+A04 -> DB : SELECT geojson_data FROM cached_layers\nWHERE layer_type = ?
+
+alt Cached layer data unavailable [UC-11.EX.1]
+    DB --> A04 : No data / Error
+    A04 --> FE : 503\n{error: "Layer data unavailable"}
+    FE --> User : Disable layer checkbox\nShow tooltip: "Data currently unavailable"
+else Data found
+    DB --> A04 : GeoJSON layer data
+
+    note over A04 : MRT exits filtered to\nzoom level ≥ 15 to avoid clutter
+
+    A04 --> FE : 200 OK\n{geoJSON: {...}, layerType}
+    FE -> FE : Render/remove layer markers\non map canvas
+    FE --> User : Layer displayed / hidden on map
+end
+
+note over User, FE : User may toggle multiple\nlayers independently;\neach triggers separate API call
+
+@enduml
+
+@startuml UC-12 Search Location
+title UC-12: Search Location (Address / Postal Code)
+
+skinparam sequenceArrowThickness 2
+skinparam roundcorner 10
+skinparam defaultFontName Georgia
+skinparam defaultFontSize 11
+
+actor "User\n(A01/A02/A03)" as User
+participant "Frontend\n(React)" as FE
+participant "Backend\n(A04)" as A04
+participant "Geocoding API\n(A05 — OneMap/Google)" as GeoAPI
+database "Cache\n(Recent Results)" as Cache
+
+User -> FE : Type address or postal code\nin search bar
+FE -> A04 : GET /api/search/geocode?q=<query>
+
+A04 -> Cache : Check cache for recent results\nmatching query
+Cache --> A04 : Cache result (hit or miss)
+
+alt Cache hit
+    A04 --> FE : 200 OK {results: [...]} (from cache)
+else Cache miss
+    A04 -> GeoAPI : Forward query to geocoding API\n(OneMap API primary / Google fallback)
+
+    alt Geocoding API unavailable [UC-12.EX.1]
+        GeoAPI --> A04 : Error / Timeout
+        A04 -> A04 : Log error
+        A04 --> FE : 503\n{error: "Location search temporarily unavailable"}
+        FE --> User : Show service unavailable message
+    else No results found [UC-12.AC.1]
+        GeoAPI --> A04 : Empty results
+        A04 --> FE : 200 OK {results: []}
+        FE --> User : Show "No matches found"\n+ Suggestions to broaden search
+    else Results returned
+        GeoAPI --> A04 : Geocoding results\n(coordinates, formatted addresses)
+        A04 -> A04 : Rank results by relevance
+        A04 -> Cache : Cache results for this query
+        A04 --> FE : 200 OK\n{results: [{address, lat, lng}, ...]}
+        FE --> User : Display result list as dropdown
+    end
+end
+
+User -> FE : Select a result from list
+FE -> FE : Centre map on selected coordinates\nDrop temporary marker at location
+FE --> User : Map centred on selected location\nwith pin marker
+
+@enduml
+
+@startuml UC-13 Drop POI Pin and Get Site Score
+title UC-13: Drop POI Pin and Get Site Score
+
+skinparam sequenceArrowThickness 2
+skinparam roundcorner 10
+skinparam defaultFontName Georgia
+skinparam defaultFontSize 11
+
+actor "User\n(A01/A02/A03)" as User
+participant "Frontend\n(React)" as FE
+participant "Backend\n(A04)" as A04
+participant "Scoring Engine" as SE
+database "Database" as DB
+
+User -> FE : Click/tap a point on the map
+FE -> FE : Drop POI pin at clicked coordinates
+FE -> A04 : POST /api/score/site\n{lat, lng, profileId, scenarioWeights}
+
+A04 -> DB : SELECT planning_area, subzone FROM area_boundaries\nWHERE ST_Contains(boundary, POINT(lat, lng))
+DB --> A04 : Planning area / subzone identifier
+
+A04 -> DB : SELECT demographics, transport,\nrental, competitors\nFROM area_profiles\nWHERE area_id = ?
+DB --> A04 : Cached area profile data
+
+alt Cached data stale (> 30 days) [UC-13.AC.2]
+    A04 -> A04 : Flag data as stale\nSchedule background refresh\nProceed with cached data
+    note over A04 : UC-34 Notify Data Staleness\nextends this flow
+end
+
+alt Competition data unavailable [UC-13.AC.1]
+    note over A04 : Score computed for 3 dimensions\nonly; competition score omitted\nwith notice in response
+end
+
+A04 -> SE : Execute scoring engine\n{areaProfile, businessProfile, scenarioWeights}
+
+SE -> SE : Calculate Demographic Match score\n(age/income alignment per FR-SSE-001)
+SE -> SE : Calculate Accessibility score\n(MRT/bus proximity per FR-SSE-002)
+SE -> SE : Calculate Rental Pressure score\n(vacancy rates, rental index per FR-SSE-003)
+SE -> SE : Calculate Competition Density score\n(nearby competitors per FR-SSE-005)
+SE -> SE : Calculate composite score\nusing scenario weights per FR-SSE-004
+
+alt Scoring engine failure [UC-13.EX.1]
+    SE --> A04 : Error
+    A04 -> A04 : Log error
+    A04 --> FE : 500 Internal Server Error\n{error: "Scoring failed. Please retry."}
+    FE --> User : Show error message + Retry option
+else Scores calculated
+    SE --> A04 : Score object:\n{composite, demographic, accessibility,\nrentalPressure, competitionDensity}
+
+    A04 --> FE : 200 OK\n{scores: {composite, demographic,\naccessibility, rentalPressure,\ncompetitionDensity}, areaName, dataFreshness}
+
+    FE --> User : Display score breakdown panel:\n- Composite score (prominent)\n- 4 dimension scores\n- "Save to Portfolio" button\n- "Explain Score" button (UC-15)
+end
+
+@enduml
+
+@startuml UC-14 View Planning Area Details
+title UC-14: View Planning Area Details
+
+skinparam sequenceArrowThickness 2
+skinparam roundcorner 10
+skinparam defaultFontName Georgia
+skinparam defaultFontSize 11
+
+actor "User\n(A01/A02/A03)" as User
+participant "Frontend\n(React)" as FE
+participant "Backend\n(A04)" as A04
+database "Database" as DB
+
+User -> FE : Click on a planning area polygon\nor info icon on the map
+FE -> A04 : GET /api/areas/{areaId}?profileId=<id>
+
+A04 -> DB : SELECT area_id, name FROM area_boundaries\nWHERE area_id = ?
+DB --> A04 : Planning area identified
+
+A04 -> DB : SELECT\n  demographics (age_distribution, income_indicators),\n  transport (mrt_count, bus_stop_density),\n  commercial (vacancy_rate, rental_benchmark),\n  area_composite_score\nFROM area_profiles\nWHERE area_id = ? AND profile_id = ?
+DB --> A04 : Area profile data
+
+alt Area profile data not found [UC-14.EX.1]
+    A04 --> FE : 404 Not Found\n{error: "Data unavailable for this area"}
+    FE --> User : Show "Data unavailable for this area"
+else Data found
+    A04 --> FE : 200 OK\n{areaName, demographics, transport,\ncommercial, areaScore}
+
+    FE --> User : Display side panel with:\n- Area name\n- Demographics charts (age/income distribution)\n- Transport metrics (MRT count, bus stop density)\n- Commercial metrics (vacancy %, rental index)\n- Area composite score for selected profile
+
+    User -> FE : Close panel or click another area
+    FE --> User : Close panel / repeat for new area
+end
+
+@enduml
+
+@startuml UC-15 View Score Explanation
+title UC-15: View Score Explanation (Insights)
+
+skinparam sequenceArrowThickness 2
+skinparam roundcorner 10
+skinparam defaultFontName Georgia
+skinparam defaultFontSize 11
+
+actor "User\n(A01/A02/A03)" as User
+participant "Frontend\n(React)" as FE
+participant "Backend\n(A04)" as A04
+participant "AI Agent\n(LLM Service)" as AI
+database "Database" as DB
+
+note over User, FE : Precondition: A site score from\nUC-13 is currently displayed
+
+User -> FE : Click "Explain Score"
+FE -> A04 : POST /api/score/explain\n{siteId OR scoreData, profileId}
+
+A04 -> DB : SELECT score_breakdown, demographics,\ntransport, rental, competition\nFROM score_data WHERE site_id = ?
+DB --> A04 : Score data and underlying metrics
+
+A04 -> AI : Invoke AI Agent with structured prompt:\n{scores, demographicData, transportMetrics,\nrentalData, competitionCount, businessProfile}
+
+alt AI service unavailable [UC-15.EX.1]
+    AI --> A04 : Error / Timeout
+    A04 -> A04 : Log error
+    A04 --> FE : 503\n{error: "Explanations temporarily unavailable"}
+    FE --> User : Show "Explanations temporarily unavailable"\n+ Retry option
+else Partial data missing [UC-15.AC.1]
+    AI --> A04 : Partial insights\n(e.g., competition dimension missing)
+    A04 --> FE : 200 OK\n{insights: {...}, warnings: ["Competition data unavailable"]}
+    FE --> User : Display available insights\n+ Warning about missing dimension
+else All insights generated
+    AI --> A04 : Structured insights:\n{demographicExplanation,\naccessibilityExplanation,\nrentalExplanation,\ncompetitionExplanation}
+
+    A04 --> FE : 200 OK\n{insights: {demographic, accessibility,\nrentalPressure, competitionDensity}}
+
+    FE --> User : Display explanation panel:\n- Demographic Match insight\n- Accessibility insight\n- Rental Pressure insight\n- Competition Density insight\n(each with 👍 / 👎 feedback button)
+
+    User -> FE : Provide feedback on an explanation\n(thumbs up/down)
+    FE -> A04 : POST /api/score/explain/feedback\n{insightId, dimension, rating}
+    A04 -> DB : INSERT INTO insight_feedback\n(insight_id, dimension, rating, user_id)
+    DB --> A04 : Feedback stored
+    A04 --> FE : 200 OK
+    FE --> User : Acknowledge feedback received
+end
+
+@enduml
+
+@startuml UC-22 Select Scenario Preset
+title UC-22: Select Scenario Preset
+
+skinparam sequenceArrowThickness 2
+skinparam roundcorner 10
+skinparam defaultFontName Georgia
+skinparam defaultFontSize 11
+
+actor "User\n(A01/A02/A03)" as User
+participant "Frontend\n(React)" as FE
+participant "Backend\n(A04)" as A04
+participant "Scoring Engine" as SE
+database "Database /\nConfig" as DB
+
+User -> FE : Open scenario selector
+FE --> User : Display preset options:\n• Normal / Holiday Peak\n• Pandemic / Delivery Focus\n• Cost-Saving Mode
+
+User -> FE : Select a preset scenario\n(e.g., "Normal / Holiday Peak")
+FE -> A04 : POST /api/scenario/preset\n{scenarioName, profileId}
+
+A04 -> DB : SELECT weights FROM scenario_presets\nWHERE name = ?
+DB --> A04 : Preset weight configuration
+
+alt Scenario configuration missing [UC-22.EX.1]
+    DB --> A04 : Not found
+    A04 -> A04 : Log error; fall back to default weights
+    A04 --> FE : 200 OK\n{weights: defaultWeights,\nwarning: "Preset unavailable; using defaults"}
+    FE --> User : Notify fallback to default weights
+else Preset found
+    A04 -> A04 : Apply preset weights to session:\n(e.g., Holiday Peak:\nAccessibility: 40%, Demographic: 35%,\nRental: 15%, Competition: 10%)
+
+    A04 -> SE : Recalculate scores\n{activeProfileId, newWeights,\ncurrentViewAreas, activePOI}
+    SE --> A04 : Updated scores\n(map overlay, POI, portfolio sites)
+
+    A04 --> FE : 200 OK\n{appliedWeights, updatedScores,\nupdatedOverlayData}
+    FE --> User : Update map overlay colours\nRefresh POI score breakdown\nUpdate weight display sliders
+end
+
+@enduml
+
+@startuml UC-23 Adjust Scoring Weights
+title UC-23: Adjust Scoring Weights (Custom)
+
+skinparam sequenceArrowThickness 2
+skinparam roundcorner 10
+skinparam defaultFontName Georgia
+skinparam defaultFontSize 11
+
+actor "User\n(A01/A02/A03)" as User
+participant "Frontend\n(React)" as FE
+participant "Backend\n(A04)" as A04
+participant "Scoring Engine" as SE
+
+User -> FE : Open weight sliders panel
+FE --> User : Display 4 weight sliders\n+ Running total (starts at 100%)
+
+User -> FE : Adjust sliders for:\n- Demographic Match\n- Accessibility\n- Rental Pressure\n- Competition Density
+FE -> FE : Update running total in real time\nHighlight if total ≠ 100%
+
+User -> FE : Click "Apply Custom Weights"
+FE -> A04 : POST /api/scenario/custom\n{demographic: %, accessibility: %,\nrentalPressure: %, competition: %}
+
+A04 -> A04 : Validate total == 100%\nper FR-SCP-002d
+
+alt Total not 100% [UC-23.AC.1]
+    A04 --> FE : 422 Unprocessable Entity\n{error: "Weights must total 100%",\nautoNormalize: true}
+    FE --> User : Show error\n+ "Auto-normalise weights?" option
+else Recalculation failure [UC-23.EX.1]
+    A04 -> SE : Recalculate scores with new weights
+    SE --> A04 : Error
+    A04 -> A04 : Log error; retain previous weights
+    A04 --> FE : 500 Internal Server Error\n{error: "Recalculation failed. Previous weights retained."}
+    FE --> User : Show error; sliders revert to previous values
+else Weights valid, recalculation successful
+    A04 -> A04 : Validate each weight is 0–100%
+    A04 -> A04 : Apply custom weights to session
+
+    A04 -> SE : Recalculate all scores\n{profileId, customWeights,\ncurrentViewAreas, activePOI}
+    SE --> A04 : Updated scores\n(map overlay + POI + portfolio sites)
+
+    A04 --> FE : 200 OK\n{appliedWeights, updatedScores,\nupdatedOverlayData}
+    FE --> User : Update map overlay\nRefresh POI score breakdown\nConfirm applied weights on sliders
+end
+
+@enduml
+
+@startuml UC-24 Reset Weights to Default
+title UC-24: Reset Weights to Default
+
+skinparam sequenceArrowThickness 2
+skinparam roundcorner 10
+skinparam defaultFontName Georgia
+skinparam defaultFontSize 11
+
+actor "User\n(A01/A02/A03)" as User
+participant "Frontend\n(React)" as FE
+participant "Backend\n(A04)" as A04
+participant "Scoring Engine" as SE
+database "Config" as Config
+
+User -> FE : Click "Reset to Default"
+FE -> A04 : POST /api/scenario/reset
+
+A04 -> Config : SELECT default_weights\nFROM system_config
+
+alt Default config not found [UC-24.EX.1]
+    Config --> A04 : Not found / Error
+    A04 -> A04 : Log error
+    A04 --> FE : 500 Internal Server Error\n{error: "Default config unavailable. Current weights retained."}
+    FE --> User : Show error; no changes applied
+else Default config found
+    Config --> A04 : Default weights\n(25% per dimension)
+
+    A04 -> A04 : Apply default weights to session\n{demographic: 25%, accessibility: 25%,\nrentalPressure: 25%, competition: 25%}
+
+    A04 -> SE : Recalculate all scores\n{profileId, defaultWeights,\ncurrentViewAreas, activePOI}
+    SE --> A04 : Updated scores
+
+    A04 --> FE : 200 OK\n{appliedWeights: {25,25,25,25},\nupdatedScores, updatedOverlayData}
+    FE --> User : Reset all sliders to 25%\nUpdate map overlay\nRefresh all score displays
+end
+
+@enduml

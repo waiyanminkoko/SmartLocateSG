@@ -1,0 +1,178 @@
+@startuml UC-06 Create Business Profile
+title UC-06: Create Business Profile (Wizard)
+
+skinparam sequenceArrowThickness 2
+skinparam roundcorner 10
+skinparam defaultFontName Georgia
+skinparam defaultFontSize 11
+
+actor "User\n(A01/A02/A03)" as User
+participant "Frontend\n(React)" as FE
+participant "Backend\n(A04)" as A04
+database "Database" as DB
+
+User -> FE : Click "Create Business Profile"
+FE --> User : Display wizard — Step 1:\nProfile name + Sector + Price band
+
+User -> FE : Enter profile name,\nselect sector and price band
+FE --> User : Advance to Step 2:\nTarget age group(s)
+
+User -> FE : Select one or more age groups\n(18-24, 25-34, 35-44, 45-54, 55-64, 65+)
+FE --> User : Advance to Step 3:\nIncome band(s)
+
+User -> FE : Select one or more income bands\n(Low / Lower-Middle / Middle /\nUpper-Middle / High)
+FE --> User : Advance to Step 4:\nReliance type
+
+User -> FE : Select reliance type\n(Walk-in / Delivery / Mixed)
+FE --> User : Display summary & "Submit" button
+
+User -> FE : Submit profile
+FE -> A04 : POST /api/profiles\n{name, sector, priceBand, ageGroups[],\nincomeBands[], relianceType}
+
+A04 -> A04 : Validate required fields:\n- At least 1 age group selected\n- At least 1 income band selected\n- Sector and price band within valid values
+
+alt Missing required selections [UC-06.AC.1]
+    A04 --> FE : 422 Unprocessable Entity\n{errors: ["age groups required", ...]}
+    FE --> User : Highlight missing/invalid fields\nNavigate back to relevant step
+else Database write failure [UC-06.EX.1]
+    A04 -> DB : INSERT INTO business_profiles\n(user_id, name, sector, price_band,\nage_groups, income_bands, reliance_type)
+    DB --> A04 : Error
+    A04 -> A04 : Log error
+    A04 --> FE : 500 Internal Server Error\n{error: "Failed to save profile. Please retry."}
+    FE --> User : Show save-failure message + retry option
+else Valid submission
+    A04 -> DB : INSERT INTO business_profiles\n(user_id, name, sector, price_band,\nage_groups, income_bands, reliance_type)
+    DB --> A04 : New profile record (with profile_id)
+    A04 --> FE : 201 Created\n{profile: {id, name, sector, ...}}
+    FE --> User : Show success confirmation\n+ Refresh and display updated profile list
+end
+
+@enduml
+
+@startuml UC-07 View Business Profiles
+title UC-07: View Business Profiles
+
+skinparam sequenceArrowThickness 2
+skinparam roundcorner 10
+skinparam defaultFontName Georgia
+skinparam defaultFontSize 11
+
+actor "User\n(A01/A02/A03)" as User
+participant "Frontend\n(React)" as FE
+participant "Backend\n(A04)" as A04
+database "Database" as DB
+
+User -> FE : Navigate to Business Profiles page
+FE -> A04 : GET /api/profiles\n(with session token)
+
+A04 -> A04 : Validate session token\nExtract user_id
+
+A04 -> DB : SELECT * FROM business_profiles\nWHERE user_id = ?\nORDER BY updated_at DESC
+DB --> A04 : List of profile records
+
+alt No profiles found
+    A04 --> FE : 200 OK\n{profiles: []}
+    FE --> User : Display "No profiles yet"\n+ "Create Business Profile" CTA
+else Profiles found
+    A04 --> FE : 200 OK\n{profiles: [{id, name, sector,\npriceBand, ageGroups, incomeBands,\nrelianceType, createdAt, updatedAt}, ...]}
+    FE --> User : Display profile list with actions:\n- Set Active\n- Edit\n- Delete\n- Create New
+end
+
+@enduml
+
+@startuml UC-08 Edit Business Profile
+title UC-08: Edit Business Profile
+
+skinparam sequenceArrowThickness 2
+skinparam roundcorner 10
+skinparam defaultFontName Georgia
+skinparam defaultFontSize 11
+
+actor "User\n(A01/A02/A03)" as User
+participant "Frontend\n(React)" as FE
+participant "Backend\n(A04)" as A04
+database "Database" as DB
+
+User -> FE : Click "Edit" on a business profile
+FE -> A04 : GET /api/profiles/{profile_id}
+
+A04 -> DB : SELECT * FROM business_profiles\nWHERE id = ? AND user_id = ?
+DB --> A04 : Profile record
+
+A04 --> FE : 200 OK\n{profile: {id, name, sector, priceBand,\nageGroups, incomeBands, relianceType}}
+FE --> User : Pre-populate wizard/form\nwith existing profile data
+
+User -> FE : Modify fields\n(name, sector, age groups, income bands, etc.)
+User -> FE : Submit changes
+
+FE -> A04 : PUT /api/profiles/{profile_id}\n{name, sector, priceBand, ageGroups[],\nincomeBands[], relianceType}
+
+A04 -> A04 : Validate updated fields\n(same rules as creation)
+
+alt Validation fails
+    A04 --> FE : 422 Unprocessable Entity\n{errors: [...]}
+    FE --> User : Highlight invalid fields
+else Database update failure [UC-08.EX.1]
+    A04 -> DB : UPDATE business_profiles SET ...\nWHERE id = ? AND user_id = ?
+    DB --> A04 : Error
+    A04 --> FE : 500 Internal Server Error
+    FE --> User : Show error message + retry option
+else Update successful
+    A04 -> DB : UPDATE business_profiles SET\n(name, sector, price_band, age_groups,\nincome_bands, reliance_type, updated_at)\nWHERE id = ? AND user_id = ?
+    DB --> A04 : Record updated
+
+    A04 -> A04 : Invalidate cached scores\nfor this profile
+    note over A04 : Score cache invalidated so\nnext map load recomputes\nwith updated profile
+
+    A04 --> FE : 200 OK\n{profile: {id, name, ...updated fields}}
+    FE --> User : Show success confirmation\n+ Refresh profile list
+end
+
+@enduml
+
+@startuml UC-09 Delete Business Profile
+title UC-09: Delete Business Profile
+
+skinparam sequenceArrowThickness 2
+skinparam roundcorner 10
+skinparam defaultFontName Georgia
+skinparam defaultFontSize 11
+
+actor "User\n(A01/A02/A03)" as User
+participant "Frontend\n(React)" as FE
+participant "Backend\n(A04)" as A04
+database "Database" as DB
+
+User -> FE : Click "Delete" on a business profile
+FE --> User : Show confirmation dialog:\n"This will also delete all associated\ncandidate sites. This action is irreversible."
+
+alt User cancels [UC-09.AC.1]
+    User -> FE : Click "Cancel"
+    FE --> User : Dismiss dialog\nNo changes made
+else User confirms deletion
+    User -> FE : Click "Confirm Delete"
+    FE -> A04 : DELETE /api/profiles/{profile_id}
+
+    A04 -> A04 : Validate session\nVerify profile belongs to user
+
+    A04 -> DB : BEGIN TRANSACTION
+
+    A04 -> DB : DELETE FROM candidate_sites\nWHERE profile_id = ?
+    DB --> A04 : Associated sites deleted
+
+    A04 -> DB : DELETE FROM business_profiles\nWHERE id = ? AND user_id = ?
+    DB --> A04 : Profile record deleted
+
+    alt Database deletion failure [UC-09.EX.1]
+        A04 -> DB : ROLLBACK
+        A04 -> A04 : Log error
+        A04 --> FE : 500 Internal Server Error\n{error: "Deletion failed. Please retry."}
+        FE --> User : Show error message\nProfile remains in list
+    else Deletion successful
+        A04 -> DB : COMMIT
+        A04 --> FE : 200 OK\n{message: "Profile and associated sites deleted"}
+        FE --> User : Show confirmation toast\n+ Refresh and display updated profile list
+    end
+end
+
+@enduml

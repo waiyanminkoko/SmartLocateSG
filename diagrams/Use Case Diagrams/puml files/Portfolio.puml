@@ -1,0 +1,68 @@
+@startuml
+left to right direction
+
+actor User
+actor "System (Backend A04)" as A04
+
+rectangle "SmartLocate SG\nPortfolio Module" {
+
+  usecase "View portfolio locations" as UC1
+  usecase "Search or filter locations\n(by name or address)" as UC2
+  usecase "Select location from portfolio" as UC3
+
+  usecase "View location score\n(composite)" as UC4
+  usecase "View statistics breakdown\n(demographics, access,\nrental, competition)" as UC5
+  usecase "Load saved score snapshot\nfrom database" as UC6
+  usecase "Refresh score from map flow\n(optional)" as UC7
+
+  usecase "Add note to selected location" as UC8
+  usecase "Edit note for selected location" as UC9
+  usecase "Delete note for selected location" as UC10
+
+  usecase "Select locations for comparison\n(min 2)" as UC11
+  usecase "Go to Compare page" as UC12
+
+  usecase "Create or select business profile\n(e.g., cafe, fitness studio)" as UC13
+  usecase "Update business profile" as UC14
+
+  usecase "Open selected location in Map page" as UC15
+}
+
+User --> UC1
+User --> UC3
+User --> UC4
+User --> UC5
+User --> UC8
+User --> UC9
+User --> UC10
+User --> UC11
+User --> UC12
+User --> UC13
+User --> UC14
+User --> UC15
+
+UC2 ..> UC1 : <<extend>>
+
+UC4 ..> UC6 : <<include>>
+UC5 ..> UC6 : <<include>>
+UC7 ..> UC4 : <<extend>>
+
+A04 --> UC1
+A04 --> UC4
+A04 --> UC5
+A04 --> UC6
+A04 --> UC8
+A04 --> UC9
+A04 --> UC10
+A04 --> UC11
+A04 --> UC12
+
+UC8 ..> UC3 : <<extend>>
+UC9 ..> UC3 : <<extend>>
+UC10 ..> UC3 : <<extend>>
+
+UC11 ..> UC1 : <<extend>>
+UC12 ..> UC11 : <<include>>
+
+UC15 ..> UC3 : <<extend>>
+@enduml

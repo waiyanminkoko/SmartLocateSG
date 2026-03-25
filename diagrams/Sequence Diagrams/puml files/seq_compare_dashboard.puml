@@ -1,0 +1,201 @@
+@startuml UC-20 Compare Candidate Sites
+title UC-20: Compare Candidate Sites (max 3)
+
+skinparam sequenceArrowThickness 2
+skinparam roundcorner 10
+skinparam defaultFontName Georgia
+skinparam defaultFontSize 11
+
+actor "User\n(A01/A02/A03)" as User
+participant "Frontend\n(React)" as FE
+participant "Backend\n(A04)" as A04
+database "Database" as DB
+
+User -> FE : Navigate to Comparison dashboard\n(or click "Compare Selected" from portfolio)
+
+FE -> A04 : GET /api/portfolio/sites?profileId=<id>
+A04 -> DB : SELECT id, site_name, address,\ncomposite_score FROM candidate_sites\nWHERE user_id = ? AND profile_id = ?
+DB --> A04 : Site list
+A04 --> FE : 200 OK {sites: [...]}
+FE --> User : Display site list with\nmulti-select checkboxes\n(Compare button disabled until ≥ 2 selected)
+
+User -> FE : Select 2–3 candidate sites
+FE -> FE : Validate: count ≤ 3
+
+alt User selects more than 3 [UC-20.AC.1]
+    FE --> User : Block 4th selection\nShow: "Maximum 3 sites for comparison"
+else Valid selection (2–3 sites)
+    User -> FE : Click "Compare"
+    FE -> A04 : GET /api/compare?siteIds=id1,id2,id3
+
+    A04 -> A04 : Validate selection count ≤ 3
+
+    A04 -> DB : SELECT site_name, address, notes,\ncomposite_score, demographic_score,\naccessibility_score, rental_score,\ncompetition_score, scenario_weights,\ncreated_at\nFROM candidate_sites\nWHERE id IN (id1, id2, id3)\nAND user_id = ?
+    DB --> A04 : Detailed scores for selected sites
+
+    alt Score data unavailable for a site [UC-20.EX.1]
+        A04 --> FE : 200 OK\n{comparison: [...], warnings: ["Score data unavailable for Site X"]}
+        FE --> User : Show comparison with\nwarning flag on affected site
+    else All data available
+        A04 -> A04 : Format comparison table data:\n{sites: [{name, composite,\ndemographic, accessibility,\nrental, competition}, ...]}
+
+        A04 -> A04 : Generate chart data\n(bar + radar) per FR-SCD-003
+
+        A04 --> FE : 200 OK\n{comparisonTable, chartData,\nprofileDetails, siteDetails}
+
+        FE --> User : Display comparison dashboard:\n- Side-by-side score table\n- Bar chart comparison\n- Radar chart comparison\n- Site details (address, notes, date)\n- "Export PDF" button (UC-21)
+    end
+end
+
+@enduml
+
+@startuml UC-21 Export Comparison Report
+title UC-21: Export Comparison Report (PDF)
+
+skinparam sequenceArrowThickness 2
+skinparam roundcorner 10
+skinparam defaultFontName Georgia
+skinparam defaultFontSize 11
+
+actor "User\n(A01/A02/A03)" as User
+participant "Frontend\n(React)" as FE
+participant "Backend\n(A04)" as A04
+participant "PDF Engine\n(PDFKit/WeasyPrint)" as PDF
+database "Database" as DB
+
+note over User, FE : Precondition: Comparison dashboard\npopulated with 2–3 sites (UC-20 done)
+
+User -> FE : Click "Export PDF"
+FE -> A04 : POST /api/compare/export\n{siteIds: [id1, id2, id3], profileId}
+
+A04 -> DB : SELECT site_name, address, notes,\nall scores, scenario_weights, created_at\nFROM candidate_sites WHERE id IN (...)
+DB --> A04 : Full comparison data
+
+A04 -> DB : SELECT name, sector, price_band,\nage_groups, income_bands, reliance_type\nFROM business_profiles WHERE id = ?
+DB --> A04 : Business profile details
+
+A04 -> A04 : Compile PDF report content:\n- Report header + generation timestamp\n- Business profile summary\n- Comparison table (all 4 dimensions)\n- Chart data (bar + radar)\n- Per-site details (coordinates, notes)
+
+A04 -> PDF : Generate PDF from template\n+ compiled data
+
+alt PDF generation fails [UC-21.EX.1] (> 5 seconds)
+    PDF --> A04 : Error / Timeout
+    A04 -> A04 : Log error
+    A04 --> FE : 500 Internal Server Error\n{error: "Report generation failed. Please retry."}
+    FE --> User : Show error + retry option
+else PDF generated successfully
+    PDF --> A04 : PDF binary / byte stream
+    A04 --> FE : 200 OK\nContent-Type: application/pdf\nContent-Disposition: attachment;\nfilename="SmartLocate_Comparison_Report.pdf"
+
+    FE -> FE : Trigger browser file download
+    FE --> User : PDF download begins\n"SmartLocate_Comparison_Report.pdf"
+end
+
+@enduml
+
+@startuml UC-26 View Data Update Status
+title UC-26: View Data Update Status (Dashboard)
+
+skinparam sequenceArrowThickness 2
+skinparam roundcorner 10
+skinparam defaultFontName Georgia
+skinparam defaultFontSize 11
+
+actor "User\n(A01/A02/A03)" as User
+participant "Frontend\n(React)" as FE
+participant "Backend\n(A04)" as A04
+database "Database\n(ETL Logs)" as DB
+
+User -> FE : Navigate to Dashboard\nor Data Management page
+
+FE -> A04 : GET /api/system/data-status
+
+A04 -> DB : SELECT provider, last_success_at,\nlast_status, record_count\nFROM etl_execution_logs\nWHERE run_id IN\n(SELECT MAX(run_id) FROM etl_execution_logs\nGROUP BY provider)
+DB --> A04 : Latest ETL log entries per provider
+
+alt ETL log table unavailable [UC-26.EX.1]
+    DB --> A04 : Error
+    A04 -> A04 : Log error
+    A04 --> FE : 503\n{error: "Status data unavailable"}
+    FE --> User : Show "Data status currently unavailable"
+else Logs retrieved
+    A04 -> A04 : Compute freshness indicators per provider:\n- Last successful refresh timestamp\n- Days since last refresh\n- Staleness flag (> 30 days = stale)\n- Overall ETL job status\n(success / partial / failure)
+
+    A04 --> FE : 200 OK\n{providers: [\n  {name: "OneMap", lastRefresh, status, isStale},\n  {name: "LTA", lastRefresh, status, isStale},\n  {name: "URA", lastRefresh, status, isStale},\n  {name: "data.gov.sg", lastRefresh, status, isStale}\n], overallStatus}
+
+    FE --> User : Display data status widget:\n- Per-provider status rows\n- 🟢 Fresh / 🟡 Warning / 🔴 Stale indicators\n- Last refresh timestamp per provider\n- Overall ETL job status badge
+    note over FE : Staleness warning visually prominent\n(yellow/red) when data > 30 days old
+end
+
+@enduml
+
+@startuml UC-25 ETL Data Refresh
+title UC-25: Run / Monitor Data Refresh (ETL)
+
+skinparam sequenceArrowThickness 2
+skinparam roundcorner 10
+skinparam defaultFontName Georgia
+skinparam defaultFontSize 11
+
+participant "Scheduler\n(Cron / Admin)" as Cron
+participant "Backend\n(A04 — ETL Orchestrator)" as A04
+participant "OneMap / SingStat\n(A05)" as OneMap
+participant "LTA DataMall\n(A05)" as LTA
+participant "URA Space API\n(A05)" as URA
+participant "data.gov.sg\n(A05)" as GovSG
+database "Database" as DB
+
+Cron -> A04 : Trigger ETL job\n(scheduled cron or manual admin trigger)
+A04 -> A04 : Log ETL job start\n+ job_id, started_at
+
+note over A04, GovSG : A04 orchestrates parallel\ndata fetches from all providers
+
+par Parallel data fetch
+    A04 -> OneMap : GET demographic data\n(age groups, income, population by subzone)
+    A04 -> LTA : GET transport data\n(MRT stations, bus stops, routes)
+    A04 -> URA : GET rental data\n(vacancy rates, rental indexes)
+    A04 -> GovSG : GET supplementary datasets
+end
+
+OneMap --> A04 : Dataset (JSON/CSV)
+LTA --> A04 : Dataset (JSON/CSV)
+URA --> A04 : Dataset (JSON/CSV)
+GovSG --> A04 : Dataset (JSON/CSV)
+
+alt One provider fails [UC-25.AC.1]
+    note over A04 : A04 continues with remaining\nproviders; logs partial failure;\nschedules retry for failed provider
+end
+
+alt All providers fail [UC-25.EX.1]
+    A04 -> A04 : Log critical error\nSend admin notification
+    note over A04, DB : Retain previous datasets unchanged
+end
+
+A04 -> A04 : Validate data integrity per provider\n(schema, completeness, date ranges)
+
+alt Data validation fails [UC-25.EX.2]
+    A04 -> A04 : Reject invalid datasets\nLog error; retain previous valid data
+end
+
+A04 -> A04 : Transform data:\n- Normalise schemas\n- Aggregate by planning area/subzone
+
+A04 -> DB : UPSERT demographic_data\n(replace/update previous records)
+A04 -> DB : UPSERT transport_data
+A04 -> DB : UPSERT rental_data
+A04 -> DB : UPSERT supplementary_data
+DB --> A04 : Data loaded
+
+A04 -> A04 : Recompute area profiles:\n- Demographic summaries\n- Transport accessibility scores\n- Rental benchmarks
+
+A04 -> DB : UPDATE area_profiles\n(demographic, transport, rental per area)
+DB --> A04 : Area profiles updated
+
+A04 -> DB : INSERT INTO etl_execution_logs\n(job_id, provider, status, record_count,\nstarted_at, completed_at)
+DB --> A04 : Logs recorded
+
+A04 -> DB : UPDATE system_config\nSET last_etl_completed_at = NOW()
+DB --> A04 : Freshness indicator updated
+
+note over A04 : Data freshness status now\nvisible to users via UC-26
+
+@enduml

@@ -1,0 +1,313 @@
+@startuml SmartLocate_SG_Dialog_Map
+
+' ============================================================
+' SmartLocate SG — Dialog Map (Screen Navigation Flow)
+' Based on: usecase_model.md, usecase_model_description.md,
+'           ui_mockup_plan.md
+' Version: 1.0  |  Date: 2026-02-20
+' ============================================================
+
+!theme plain
+skinparam backgroundColor #FAFAFA
+skinparam defaultFontName "Segoe UI"
+skinparam defaultFontSize 12
+skinparam titleFontSize 18
+skinparam titleFontStyle bold
+skinparam titleFontColor #1A237E
+
+skinparam state {
+    BackgroundColor #E8EAF6
+    BorderColor #3949AB
+    BorderThickness 2
+    FontColor #1A237E
+    FontSize 11
+    ArrowColor #455A64
+    ArrowThickness 1.5
+    AttributeFontSize 10
+    AttributeFontColor #37474F
+}
+
+skinparam note {
+    BackgroundColor #FFF9C4
+    BorderColor #F9A825
+    FontSize 10
+}
+
+title SmartLocate SG — Dialog Map\n<size:13>(Screen Navigation & Use Case Flows)</size>
+
+' ============================================================
+' SCREEN STATES
+' ============================================================
+
+' ── Auth Screens -----------------------------------------─────────────
+state "**S01** Landing" as S01 #E3F2FD {
+    S01 : • Value proposition hero
+    S01 : • [Get Started] → Register
+    S01 : • [Log In] → Login
+    S01 : • Dataset attribution footer
+}
+
+state "**S02** Register" as S02 #E3F2FD {
+    S02 : UC-01 Register Account
+    S02 : UC-02 Verify Email
+    S02 : -----------------------------------------
+    S02 : • Email / Password / Confirm PW
+    S02 : • User type: SME | MNC | Agent
+    S02 : • Terms of Service checkbox
+    S02 : • [Submit] → sends verification email
+    S02 : • States: validation errors,\n  "Check your email", resend link
+}
+
+state "**S03** Log In" as S03 #E3F2FD {
+    S03 : UC-03 Log In  |  UC-05 Reset Password
+    S03 : -----------------------------------------
+    S03 : • Email + Password fields
+    S03 : • [Log In] button
+    S03 : • [Forgot Password] → reset email
+    S03 : • States: wrong credentials,\n  unverified account notice
+}
+
+' ── Main App Screens -----------------------------------------─────────
+state "**S04** Dashboard" as S04 #E8F5E9 {
+    S04 : UC-07 View Profiles (summary)
+    S04 : UC-17 View Portfolio (summary)
+    S04 : UC-26 View Data Update Status
+    S04 : -----------------------------------------
+    S04 : • [Create Business Profile] CTA
+    S04 : • Recent profiles list
+    S04 : • Recent candidate sites
+    S04 : • [Open Map] CTA
+    S04 : • [Compare Sites] CTA (disabled < 2 sites)
+    S04 : • Data freshness widget
+}
+
+state "**S05** Business Profiles List" as S05 #FFF3E0 {
+    S05 : UC-07 View  | UC-08 Edit  | UC-09 Delete
+    S05 : -----------------------------------------
+    S05 : • Profile cards: name, sector,\n  price band, last updated
+    S05 : • Actions: [Set Active] [Edit] [Delete]
+    S05 : • [Create New Profile] button
+    S05 : • States: empty list, delete confirm modal
+}
+
+state "**S06** Business Profile Wizard" as S06 #FFF3E0 {
+    state "Step 1: Basics\n(name, sector, price band)" as S06_S1
+    state "Step 2: Target Customers\n(age groups, income bands)" as S06_S2
+    state "Step 3: Operating Model\n(walk-in / delivery / mixed)" as S06_S3
+    state "Step 4: Review & Save\n(summary + confirm)" as S06_S4
+
+    [*]     --> S06_S1
+    S06_S1  --> S06_S2 : [Next]
+    S06_S2  --> S06_S1 : [Back]
+    S06_S2  --> S06_S3 : [Next]\n(≥1 age group, ≥1 income band required)
+    S06_S3  --> S06_S2 : [Back]
+    S06_S3  --> S06_S4 : [Next]
+    S06_S4  --> S06_S3 : [Back]
+    S06_S4  --> [*]    : [Save Profile]
+}
+
+state "**S07** Map Exploration  ★ Core Screen" as S07 #F3E5F5 {
+    S07 : UC-10 View Interactive Map
+    S07 : UC-11 Toggle Map Layers
+    S07 : UC-12 Search Location
+    S07 : UC-13 Drop POI Pin & Get Score
+    S07 : UC-15 View Score Explanation
+    S07 : UC-16 Save Candidate Site
+    S07 : UC-22 Select Scenario Preset
+    S07 : -----------------------------------------
+    S07 : • Active Profile dropdown (required)
+    S07 : • Scenario preset dropdown
+    S07 : • [Weights] button → S08
+    S07 : • Overlay selector: Composite |\n  Demographics | Accessibility | Vacancy
+    S07 : • Layer toggles: MRT stations,\n  MRT exits, Bus stops
+    S07 : • Search bar (address / postal code)
+    S07 : • Map canvas — click to drop POI pin
+    S07 : • Score Breakdown panel:\n  composite + 4 dimension bars
+    S07 : • [Explain Score] button
+    S07 : • [Save to Portfolio] button
+    S07 : • States: no-profile prompt,\n  loading skeleton, stale-data banner,\n  partial API failure notice
+}
+
+state "**S08** Weight Adjustment\n[Modal / Drawer]" as S08 #FCE4EC {
+    S08 : UC-23 Adjust Scoring Weights
+    S08 : UC-24 Reset Weights to Default
+    S08 : -----------------------------------------
+    S08 : • Sliders: Demographic Match,\n  Accessibility, Rental Pressure,\n  Competition Density
+    S08 : • Live total indicator (must = 100%)
+    S08 : • [Apply]  [Cancel]  [Reset to Default]
+    S08 : • Behaviour: strict 100% or auto-normalise
+}
+
+state "**S09** Planning Area Details\n[Side Panel]" as S09 #FCE4EC {
+    S09 : UC-14 View Planning Area Details
+    S09 : -----------------------------------------
+    S09 : • Area name + boundary highlight
+    S09 : • Population demographics chart\n  (age distribution, income indicators)
+    S09 : • Accessibility summary\n  (MRT count, bus stop density)
+    S09 : • Vacancy/rental proxy summary
+    S09 : • Area composite score
+    S09 : • [Close] button
+}
+
+state "**S10** Portfolio — Candidate Sites" as S10 #E0F2F1 {
+    S10 : UC-17 View Portfolio
+    S10 : UC-18 Edit Notes
+    S10 : UC-19 Delete Site
+    S10 : -----------------------------------------
+    S10 : • Filter by business profile
+    S10 : • Table/cards: site name, address,\n  composite score, saved date
+    S10 : • Row actions: [View on Map]\n  [Edit Notes]  [Delete]
+    S10 : • Multi-select checkboxes for Compare
+    S10 : • [Compare Selected] button (2–3 sites)
+    S10 : • States: empty portfolio,\n  delete confirm modal
+}
+
+state "**S11** Candidate Site Details\n[Optional View]" as S11 #E0F2F1 {
+    S11 : UC-18 Edit Notes  |  UC-15 Score Explanation
+    S11 : -----------------------------------------
+    S11 : • Map mini-view centred on site
+    S11 : • Score breakdown (all 4 dimensions)
+    S11 : • Notes editor (free text)
+    S11 : • AI-generated explanation per dimension\n  (demographic, accessibility,\n   rental, competition)
+    S11 : • User feedback on each explanation
+}
+
+state "**S12** Compare Sites Dashboard" as S12 #EFEBE9 {
+    S12 : UC-20 Compare Candidate Sites
+    S12 : UC-21 Export Comparison Report
+    S12 : -----------------------------------------
+    S12 : • Selected site chips (max 3)
+    S12 : • Comparison table:\n  composite + 4 dimensions per site
+    S12 : • Radar chart / grouped bar chart
+    S12 : • [Export PDF] button
+    S12 : • States: <2 sites prompt,\n  >3 attempted validation message
+}
+
+state "**S13** Admin — Data Status\n[Admin / A04 only]" as S13 #ECEFF1 {
+    S13 : UC-25 Run/Monitor Data Refresh (ETL)
+    S13 : UC-26 View Data Update Status
+    S13 : UC-27 Configure API Keys
+    S13 : UC-28 Configure Default Weights
+    S13 : UC-29 View System Logs
+    S13 : UC-30 Manage User Accounts
+    S13 : -----------------------------------------
+    S13 : • Data sources table:\n  OneMap/SingStat, LTA, URA,\n  Google Maps, data.gov.sg
+    S13 : • Last updated timestamp + status
+    S13 : • [Run Refresh] button
+    S13 : • System configuration panels
+}
+
+' ============================================================
+' TRANSITIONS — Authentication
+' ============================================================
+
+[*]   --> S01 : App entry
+
+S01   --> S02 : [Get Started]
+S01   --> S03 : [Log In]
+
+S02   --> S02 : Validation error\n(inline feedback)
+S02   --> S03 : Registration success\n"Check your email" →\nUser verifies (UC-02)
+
+S03   --> S02 : [Create Account]
+S03   --> S03 : [Forgot Password]\nPassword reset email sent (UC-05)\n─ User clicks reset link ─\nNew password set → stays on S03
+S03   --> S04 : Login success (UC-03)\n[Redirect to Dashboard]
+
+' ============================================================
+' TRANSITIONS — Dashboard ↔ Main Screens
+' ============================================================
+
+S04   --> S05 : [View Profiles] / nav bar
+S04   --> S06 : [Create Business Profile] CTA
+S04   --> S07 : [Open Map] CTA
+S04   --> S12 : [Compare Sites] CTA
+S04   --> S13 : [Admin Panel]\n(admin users only)
+
+' ============================================================
+' TRANSITIONS — Business Profile Management
+' ============================================================
+
+S05   --> S06 : [Create New Profile] (UC-06)
+S05   --> S06 : [Edit Profile] (UC-08)
+S06   --> S05 : [Save Profile] or [Cancel] (UC-06/UC-08)
+S05   --> S04 : [Dashboard] (top bar nav)
+
+' ============================================================
+' TRANSITIONS — Map Screen (Hub)
+' ============================================================
+
+S07   --> S08 : [Weights] button (UC-23/UC-24)
+S08   --> S07 : [Apply] — weights updated\nscore overlay refreshed
+S08   --> S07 : [Cancel] — no change
+S08   --> S07 : [Reset to Default] (UC-24)\nscore overlay refreshed
+
+S07   --> S09 : Click planning area polygon\n(UC-14)
+S09   --> S07 : [Close] panel
+
+S07   --> S10 : [Save to Portfolio] (UC-16)\n→ toast confirmation
+
+' ============================================================
+' TRANSITIONS — Portfolio
+' ============================================================
+
+S10   --> S07 : [View on Map] (UC-17)\nmap centres on site
+S10   --> S11 : [Edit Notes] / [View Details] (UC-18)
+S11   --> S10 : [Back to Portfolio]
+S11   --> S07 : [View on Map] — mini-view link
+
+S10   --> S12 : [Compare Selected]\n2–3 sites multi-selected (UC-20)
+S10   --> S04 : [Dashboard] (top bar nav)
+
+' ============================================================
+' TRANSITIONS — Compare
+' ============================================================
+
+S12   --> S10 : [Back to Portfolio]
+S12   --> S12 : [Export PDF] (UC-21)\n→ browser downloads PDF
+S12   --> S04 : [Dashboard] (top bar nav)
+
+' ============================================================
+' TRANSITIONS — Admin
+' ============================================================
+
+S13   --> S04 : [Back to Dashboard]
+
+' ============================================================
+' GLOBAL TRANSITION — Log Out (from any authenticated screen)
+' ============================================================
+
+S04   -[dashed]-> S03 : [Log Out] (UC-04)
+S05   -[dashed]-> S03 : [Log Out] (UC-04)
+S07   -[dashed]-> S03 : [Log Out] (UC-04)
+S10   -[dashed]-> S03 : [Log Out] (UC-04)
+S12   -[dashed]-> S03 : [Log Out] (UC-04)
+S13   -[dashed]-> S03 : [Log Out] (UC-04)
+
+' ============================================================
+' LEGEND / ANNOTATION NOTES
+' ============================================================
+
+note as N_AUTH
+    **Auth Zone** (S01–S03)
+    UC-01, UC-02, UC-03, UC-04, UC-05
+    Unauthenticated screens
+end note
+
+note as N_MAP
+    **Map Zone** (S07–S09)
+    Core interaction hub.
+    S08 and S09 are overlays/panels
+    that open on top of S07.
+end note
+
+note as N_DASH
+    **Global Top-Bar Navigation**
+    (visible on all authenticated screens)
+    Links: Dashboard | Map |
+    Profiles | Portfolio | Compare
+    ---
+    Dashed arrows = **Log Out** from
+    any authenticated screen (UC-04)
+end note
+
+@enduml

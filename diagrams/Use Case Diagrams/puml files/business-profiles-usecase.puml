@@ -1,0 +1,190 @@
+﻿@startuml SmartLocate SG - Business Profile Use Case Diagram
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam actorStyle awesome
+skinparam packageStyle rectangle
+
+' Title
+title SmartLocate SG — Business Profile Management\nUse Case Diagram
+footer Generated: February 28, 2026
+
+' Styling
+skinparam usecase {
+    BackgroundColor #E3F2FD
+    BorderColor #1565C0
+    ArrowColor #424242
+    FontSize 11
+}
+
+skinparam actor {
+    BackgroundColor #FFF3E0
+    BorderColor #E65100
+    FontSize 11
+}
+
+skinparam package {
+    BackgroundColor #FAFAFA
+    BorderColor #9E9E9E
+    FontSize 12
+    FontStyle bold
+}
+
+skinparam note {
+    BackgroundColor #FFFDE7
+    BorderColor #F9A825
+}
+
+' ===========================================================
+' ACTORS
+' ===========================================================
+
+' USER represents three roles with identical use case access:
+'   A01 — Small Business Owner
+'   A02 — Franchise / MNC Expansion Team
+'   A03 — Commercial Agent
+actor "User\n(A01 / A02 / A03)" as USER
+actor "System\n(Backend A04)" as A04
+actor "External API\n(Supabase /\nPublic Databases)" as EXTAPI
+actor "Chatbot API\n(AI Agent)" as CHATBOT
+
+note right of USER
+  Represents three user roles
+  with identical system access:
+  • A01: Small Business Owner
+  • A02: Franchise/MNC Expansion Team
+  • A03: Commercial Agent
+end note
+
+note right of EXTAPI
+  Supabase: profile persistence,
+  authentication, Row-Level Security.
+  Public Databases: sector benchmarks,
+  industry classification reference data.
+end note
+
+note right of CHATBOT
+  AI Agent that generates
+  sector-specific setup tips
+  and profile recommendations.
+end note
+
+' ===========================================================
+' SYSTEM BOUNDARY
+' ===========================================================
+
+rectangle "SmartLocate SG — Business Profile Management" {
+
+    ' -------------------------------------------------------
+    ' Core Business Profile Use Cases
+    ' -------------------------------------------------------
+    package "Business Profile CRUD" #E3F2FD {
+        usecase "UC-06\nCreate Business\nProfile (Wizard)" as UC06
+        usecase "UC-07\nView Business\nProfiles" as UC07
+        usecase "UC-08\nEdit Business\nProfile" as UC08
+        usecase "UC-09\nDelete Business\nProfile" as UC09
+    }
+
+    ' -------------------------------------------------------
+    ' Supporting / Internal Use Cases
+    ' -------------------------------------------------------
+    package "Supporting Operations" #F1F8E9 {
+        usecase "UC-06a\nValidate Profile\nInput Rules" as UC06a
+        usecase "UC-06b\nFetch Sector &\nIndustry Reference\nData" as UC06b
+        usecase "UC-06c\nSave Profile\nto Supabase" as UC06c
+        usecase "UC-07a\nRetrieve Profiles\nfrom Supabase" as UC07a
+        usecase "UC-08a\nUpdate Profile\nin Supabase" as UC08a
+        usecase "UC-08b\nInvalidate\nScore Cache" as UC08b
+        usecase "UC-09a\nCascade Delete\nProfile & Sites\nin Supabase" as UC09a
+    }
+
+    ' -------------------------------------------------------
+    ' AI-Assisted Use Cases
+    ' -------------------------------------------------------
+    package "AI-Assisted Guidance" #FFF8E1 {
+        usecase "UC-06d\nGenerate Profile\nSetup Suggestions" as UC06d
+        usecase "UC-06e\nGenerate Sector-\nSpecific Tips" as UC06e
+    }
+
+}
+
+' ===========================================================
+' ACTOR -> USE CASE ASSOCIATIONS
+' ===========================================================
+
+' --- USER initiates all primary CRUD operations ---
+USER --> UC06
+USER --> UC07
+USER --> UC08
+USER --> UC09
+
+' --- A04: System Backend orchestrates all supporting operations ---
+A04 --> UC06a
+A04 --> UC06b
+A04 --> UC06c
+A04 --> UC07a
+A04 --> UC08a
+A04 --> UC08b
+A04 --> UC09a
+
+' --- External API: Supabase persistence and public reference data ---
+EXTAPI --> UC06c : persists profile
+EXTAPI --> UC06b : supplies sector data
+EXTAPI --> UC07a : retrieves profiles
+EXTAPI --> UC08a : updates profile
+EXTAPI --> UC09a : deletes records
+
+' --- Chatbot API: optional AI guidance during profile creation ---
+CHATBOT --> UC06d : generates suggestions
+CHATBOT --> UC06e : generates tips
+
+' ===========================================================
+' <<include>> RELATIONSHIPS
+' ===========================================================
+
+UC06 ..> UC06a : <<include>>
+UC06 ..> UC06b : <<include>>
+UC06 ..> UC06c : <<include>>
+UC06 ..> UC07  : <<include>>
+
+UC07 ..> UC07a : <<include>>
+
+UC08 ..> UC07a : <<include>>
+UC08 ..> UC06a : <<include>>
+UC08 ..> UC08a : <<include>>
+UC08 ..> UC08b : <<include>>
+
+UC09 ..> UC09a : <<include>>
+
+' ===========================================================
+' <<extend>> RELATIONSHIPS
+' ===========================================================
+
+UC06d ..> UC06 : <<extend>>
+UC06e ..> UC06 : <<extend>>
+
+' ===========================================================
+' LEGEND
+' ===========================================================
+
+legend bottom right
+  **Scope:** Business Profile Management page only.
+  Other pages (Map, Portfolio, Compare, Auth, Admin)
+  are out of scope for this diagram.
+
+  **Actors:**
+  User (A01/A02/A03): Combined authenticated user
+    • A01: Small Business Owner
+    • A02: Franchise/MNC Expansion Team
+    • A03: Commercial Agent
+  A04: System Backend — orchestrates all operations
+  External API: Supabase (persistence + RLS) and
+    Publicly Available Databases (sector reference)
+  Chatbot API: AI Agent for profile setup guidance
+
+  **Relationships:**
+  ——>   Association (actor participates in use case)
+  ..>  <<include>>   mandatory sub-use case
+  ..>  <<extend>>    optional / AI-assisted path
+endlegend
+
+@enduml

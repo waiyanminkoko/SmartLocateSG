@@ -1,0 +1,65 @@
+@startuml
+title SmartLocate SG - Compare Module Class Diagram
+skinparam classAttributeIconSize 0
+
+class ComparePage <<boundary>> {
+	+loadSites(userId: string): void
+	+toggleSelection(siteId: string): void
+	+compareSelected(): void
+	+exportPdf(): void
+}
+
+class CompareController <<control>> {
+	+listCandidateSites(userId: string): CandidateSite[]
+	+validateSelection(siteIds: string[]): boolean
+	+buildComparison(siteIds: string[]): ComparisonResult
+}
+
+class ExportController <<control>> {
+	+exportComparisonPdf(result: ComparisonResult): Blob
+}
+
+class CandidateSite <<entity>> {
+	+id: string
+	+userId: string
+	+profileId: string
+	+siteName: string
+	+addressLabel: string
+}
+
+class SiteScore <<entity>> {
+	+id: string
+	+compositeScore: number
+	+demographicScore: number
+	+accessibilityScore: number
+	+rentalPressureScore: number
+	+competitionScore: number
+}
+
+class ComparisonResult <<entity>> {
+	+siteIds: string[]
+	+rows: object[]
+	+chartData: object
+}
+
+class CandidateSiteRepository <<repository>> {
+	+findByUser(userId: string): CandidateSite[]
+	+findByIds(userId: string, siteIds: string[]): CandidateSite[]
+}
+
+class ScoreRepository <<repository>> {
+	+findBySiteIds(siteIds: string[]): SiteScore[]
+}
+
+ComparePage --> CompareController
+ComparePage --> ExportController
+CompareController --> CandidateSiteRepository
+CompareController --> ScoreRepository
+CompareController --> ComparisonResult
+ExportController --> ComparisonResult
+
+CandidateSite "1" -- "0..1" SiteScore : snapshot
+ComparisonResult "1" o-- "2..3" CandidateSite
+ComparisonResult "1" o-- "2..3" SiteScore
+
+@enduml

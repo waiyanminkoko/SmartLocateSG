@@ -1,0 +1,159 @@
+@startuml SmartLocate_SG_Dialog_Map
+title SmartLocate SG — Dialog Map (State Machine of System UI)
+footer Generated: February 20, 2026
+
+skinparam defaultFontName Georgia
+skinparam defaultFontSize 11
+skinparam shadowing false
+skinparam roundcorner 12
+
+skinparam state {
+    BackgroundColor #DDE8F5
+    BorderColor #4472C4
+    ArrowColor #111111
+    FontName Georgia
+    FontSize 11
+}
+
+skinparam note {
+    BackgroundColor #FFFDE7
+    BorderColor #F9A825
+    FontName Georgia
+    FontSize 10
+}
+
+' ============================================================
+' UNAUTHENTICATED
+' ============================================================
+state "UNAUTHENTICATED" as UNAUTH #EEF4FB {
+    [*]           --> Landing
+    Landing       --> Register      : "Get Started"
+    Landing       --> Login         : "Log In"
+    Register      --> VerifyPending : Submit [UC-01]
+    VerifyPending --> Login         : Email verified [UC-02]
+    Login         --> ForgotPW      : "Forgot Password"
+    ForgotPW      --> Login         : Reset success [UC-05]
+
+    state Landing
+    state Register
+    state VerifyPending  : Verify Email Pending
+    state Login          : Log In
+    state ForgotPW       : Forgot Password
+}
+
+' ============================================================
+' AUTHENTICATED
+' ============================================================
+state "AUTHENTICATED" as AUTH #EEF9EE {
+    [*] --> Dashboard
+
+    ' ── DASHBOARD ──────────────────────────────────────────
+    state Dashboard
+
+    ' ── PROFILES ───────────────────────────────────────────
+    state "PROFILES" as Profiles {
+        [*]      --> BP_List
+        state "Profile List" as BP_List
+        state "Wizard\n(3 steps + Review)" as Wizard
+        state "Edit Profile" as BP_Edit
+        state "Delete Confirm" as BP_Del
+
+        BP_List --> Wizard  : Create new
+        BP_List --> BP_Edit : Edit
+        BP_List --> BP_Del  : Delete
+        Wizard  --> BP_List : Save / Cancel [UC-06]
+        BP_Edit --> BP_List : Save / Cancel [UC-08]
+        BP_Del  --> BP_List : Confirm / Cancel [UC-09]
+    }
+
+    ' ── MAP ────────────────────────────────────────────────
+    state "MAP" as MapPage {
+        [*]            --> Map_Idle
+        state "Idle" as Map_Idle
+        state "Scoring" as Map_Scoring
+        state "Score Shown" as Map_ScoreShown
+        state "Explanation Panel" as Map_Explain
+        state "Save Dialog" as Map_SaveDlg
+        state "Weight Modal" as Map_Weights
+        state "Area Details" as Map_Area
+
+        Map_Idle       --> Map_Scoring     : Drop POI pin [UC-13]
+        Map_Idle       --> Map_Weights     : Weight Adjustment [UC-23]
+        Map_Idle       --> Map_Area        : Click planning area [UC-14]
+        Map_Idle       --> Map_Idle        : Toggle layer / search /\nscenario / overlay
+
+        Map_Scoring    --> Map_ScoreShown  : Scores ready [UC-13]
+        Map_Scoring    --> Map_Idle        : Error — retry
+
+        Map_ScoreShown --> Map_Explain     : "Explain Score" [UC-15]
+        Map_ScoreShown --> Map_SaveDlg     : "Save to Portfolio" [UC-16]
+        Map_ScoreShown --> Map_Scoring     : Drop new pin
+        Map_ScoreShown --> Map_Idle        : Dismiss
+
+        Map_Explain    --> Map_ScoreShown  : Close
+        Map_SaveDlg    --> Map_Idle        : Saved [UC-16]
+        Map_SaveDlg    --> Map_ScoreShown  : Cancel
+        Map_Weights    --> Map_Idle        : Apply / Reset / Cancel [UC-24]
+        Map_Area       --> Map_Idle        : Close
+    }
+
+    ' ── PORTFOLIO ──────────────────────────────────────────
+    state "PORTFOLIO" as Portfolio {
+        [*]     --> PF_List
+        state "Portfolio List" as PF_List
+        state "Edit Notes" as PF_Notes
+        state "Delete Confirm" as PF_Del
+
+        PF_List  --> PF_Notes : Edit notes [UC-18]
+        PF_List  --> PF_Del   : Delete site [UC-19]
+        PF_Notes --> PF_List  : Save / Cancel
+        PF_Del   --> PF_List  : Confirm / Cancel
+    }
+
+    ' ── COMPARE ────────────────────────────────────────────
+    state "COMPARE" as Compare {
+        [*]            --> CMP_Select
+        state "Select Sites\n(2-3 max)" as CMP_Select
+        state "Dashboard\n(table / bar / radar)" as CMP_Dashboard
+        state "Export PDF" as CMP_Export
+
+        CMP_Select    --> CMP_Dashboard : Compare [UC-20]
+        CMP_Dashboard --> CMP_Select    : Change selection
+        CMP_Dashboard --> CMP_Export    : "Export PDF" [UC-21]
+        CMP_Export    --> CMP_Dashboard : Done / Error
+    }
+
+    ' ── GLOBAL NAV ─────────────────────────────────────────
+    Dashboard --> Profiles  : Nav / CTA
+    Dashboard --> MapPage   : Nav / CTA
+    Dashboard --> Portfolio : Nav
+    Dashboard --> Compare   : Nav / CTA
+
+    Profiles  --> Dashboard : Nav
+    Profiles  --> MapPage   : Nav
+    Profiles  --> Portfolio : Nav
+    Profiles  --> Compare   : Nav
+
+    MapPage   --> Dashboard : Nav
+    MapPage   --> Profiles  : Nav
+    MapPage   --> Portfolio : Nav
+    MapPage   --> Compare   : Nav
+
+    Portfolio --> Dashboard : Nav
+    Portfolio --> Profiles  : Nav
+    Portfolio --> MapPage   : Nav
+    Portfolio --> Compare   : Compare Selected [UC-20]
+
+    Compare   --> Dashboard : Nav
+    Compare   --> Profiles  : Nav
+    Compare   --> MapPage   : Nav
+    Compare   --> Portfolio : Nav
+}
+
+' ============================================================
+' TOP-LEVEL
+' ============================================================
+UNAUTH --> AUTH   : Login success [UC-03]
+AUTH   --> UNAUTH : Log Out [UC-04] / session timeout
+
+@enduml

@@ -1,0 +1,56 @@
+@startuml
+left to right direction
+
+class "User (SME)" as User <<actor>>
+
+package "Comparison UI (Boundary)" {
+  class "ComparePage" as B_Compare <<boundary>>
+  class "CompareCriteriaPanel" as B_Criteria <<boundary>>
+  class "CompareResultsPanel" as B_Results <<boundary>>
+  class "CompareMapPanel" as B_Map <<boundary>>
+}
+
+package "Comparison Logic (Control)" {
+  class "ComparisonController" as C_Compare <<control>>
+  class "ComparisonCriteriaController" as C_Criteria <<control>>
+}
+
+package "Domain Data (Entity)" {
+  class "UserAccount" as E_User <<entity>>
+  class "BusinessProfile" as E_Profile <<entity>>
+  class "SavedLocation" as E_Saved <<entity>>
+  class "Location" as E_Location <<entity>>
+  class "ComparisonSession" as E_Session <<entity>>
+  class "ComparisonResult" as E_Result <<entity>>
+  class "LocationScore" as E_Score <<entity>>
+  class "ScoreBreakdown" as E_Breakdown <<entity>>
+}
+
+' User interacts with boundary
+User --> B_Compare
+User --> B_Criteria
+User --> B_Results
+User --> B_Map
+
+' Boundary calls control
+B_Compare --> C_Compare : open/select/remove
+B_Criteria --> C_Criteria : set criteria
+B_Results --> C_Compare : view breakdown
+B_Map --> C_Compare : show on map
+
+' Controls use entities
+C_Compare --> E_User
+C_Compare --> E_Profile
+C_Compare --> E_Saved
+C_Compare --> E_Location
+C_Compare --> E_Session
+C_Compare --> E_Result
+C_Compare --> E_Score
+C_Compare --> E_Breakdown
+
+C_Criteria --> E_Profile
+C_Criteria --> E_Session
+
+@enduml
+
+@enduml

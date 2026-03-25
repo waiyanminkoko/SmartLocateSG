@@ -1,0 +1,203 @@
+@startuml AuthClassDiagram
+title SmartLocate SG — Authentication Module (Class Diagram)
+
+skinparam classAttributeIconSize 0
+skinparam nodesep 40
+skinparam ranksep 60
+skinparam padding 5
+skinparam roundcorner 5
+skinparam defaultFontSize 10
+
+' =========================
+' Boundary
+' =========================
+package "Boundary" #FFDDDD {
+    class AuthenticationAPI <<boundary>> {
+        - supabase : SupabaseAuthClient
+        --
+        + register(email: str, password: str, userType: str) : AuthResponse
+        + verifyEmail(token: str) : AuthResponse
+        + login(email: str, password: str) : AuthResponse
+        + logout(accessToken: str) : void
+        + requestPasswordReset(email: str) : void
+        + resetPassword(token: str, newPassword: str) : AuthResponse
+        + resendVerificationEmail(email: str) : void
+        + refreshSession(refreshToken: str) : AuthResponse
+    }
+}
+
+' =========================
+' Control
+' =========================
+package "Control" #DDFFDD {
+    class AuthenticationController <<control>> {
+        - auth_service : AuthService
+        --
+        + register(request: HttpRequest) : HttpResponse
+        + verify_email(request: HttpRequest) : HttpResponse
+        + login(request: HttpRequest) : HttpResponse
+        + logout(request: HttpRequest) : HttpResponse
+        + request_password_reset(request: HttpRequest) : HttpResponse
+        + reset_password(request: HttpRequest) : HttpResponse
+        + resend_verification(request: HttpRequest) : HttpResponse
+        + refresh_session(request: HttpRequest) : HttpResponse
+    }
+
+    class AuthService <<control>> {
+        - auth_client : SupabaseAuthClient
+        - db_client : SupabaseDBClient
+        --
+        + register(email: str, password: str, user_type: str) : User
+        + verify_email(token: str) : bool
+        + login(email: str, password: str) : AuthSession
+        + logout(access_token: str) : void
+        + request_password_reset(email: str) : void
+        + reset_password(token: str, new_password: str) : bool
+        + resend_verification_email(email: str) : void
+        + get_current_user(token: str) : User
+        + validate_token(token: str) : bool
+        + get_user_id(token: str) : str
+        + require_authenticated(token: str) : User
+        + refresh_session(refresh_token: str) : AuthSession
+        - hash_password(password: str) : str
+        - validate_password_policy(password: str) : ValidationResult
+        - check_email_unique(email: str) : bool
+    }
+}
+
+' =========================
+' Enums
+' =========================
+package "Enum" #DDDFFD {
+    enum UserType {
+        SME_OWNER
+        FRANCHISE_MNC
+        COMMERCIAL_AGENT
+        ADMIN
+    }
+    enum AccountStatus {
+        PENDING
+        ACTIVE
+        DEACTIVATED
+    }
+    enum TokenType {
+        EMAIL_VERIFICATION
+        PASSWORD_RESET
+    }
+}
+
+' =========================
+' Entity
+' =========================
+package "Entity" #DDDDFF {
+    entity User {
+        +user_id: BIGINT
+        +name: VARCHAR(80)
+        +email: VARCHAR(120)
+        +type_code: VARCHAR(16)
+        +status: VARCHAR(16)
+        +created_at: DATETIME
+        +last_login_at: DATETIME
+        --
+        + get_display_name() : str
+        + is_admin() : bool
+    }
+
+    entity AuthSession {
+        +session_id: BIGINT
+        +user_id: BIGINT
+        +access_token: VARCHAR(512)
+        +refresh_token: VARCHAR(512)
+        +created_at: DATETIME
+        +expires_at: DATETIME
+        +last_active_at: DATETIME
+        +is_active: BOOLEAN
+        --
+        + is_expired() : bool
+        + invalidate() : void
+    }
+
+    entity AuthToken {
+        +token_id: BIGINT
+        +user_id: BIGINT
+        +token_hash: VARCHAR(256)
+        +token_type: VARCHAR(32)
+        +created_at: DATETIME
+        +expires_at: DATETIME
+        +used_at: DATETIME
+        +is_used: BOOLEAN
+        --
+        + is_expired() : bool
+        + is_valid() : bool
+        + mark_used() : void
+    }
+
+    class ValidationResult <<value object>> {
+        - _is_valid : bool
+        - errors : dict[str, str]
+        --
+        + add_error(field: str, message: str) : void
+        + is_valid() : bool
+        + get_errors() : dict[str, str]
+        + get_first_error() : str | None
+        + merge(other: ValidationResult) : ValidationResult
+    }
+}
+
+' =========================
+' External Services
+' =========================
+package "External Services" #FFFACD {
+    class SupabaseAuthClient <<external API>> {
+        - supabase_url : str
+        - supabase_anon_key : str
+        --
+        + sign_up(email: str, password: str) : AuthResponse
+        + sign_in_with_password(email: str, password: str) : AuthResponse
+        + sign_out(access_token: str) : void
+        + get_user(access_token: str) : UserResponse
+        + refresh_session(refresh_token: str) : AuthResponse
+        + reset_password_for_email(email: str) : void
+    }
+
+    class SupabaseDBClient <<external API>> {
+        - api_url : str
+        - api_key : str
+        --
+        + insert(table: str, data: dict) : dict
+        + select(table: str, filters: dict, columns: str) : list[dict]
+        + update(table: str, match: dict, data: dict) : dict
+        + delete(table: str, match: dict) : bool
+    }
+}
+
+' =========================
+' Relationships
+' =========================
+
+' Boundary -> Control
+AuthenticationAPI ..> AuthenticationController : <<call>>
+AuthenticationController --> AuthService : uses
+
+' Control -> External
+AuthService --> SupabaseAuthClient : <<use>>
+AuthService --> SupabaseDBClient : <<use>>
+AuthService ..> ValidationResult : <<create>>
+
+' Control -> Entity
+AuthService ..> User : <<read/write>>
+AuthService ..> AuthSession : <<read/write>>
+AuthService ..> AuthToken : <<read/write>>
+
+' Entity relationships
+User "1" -- "0..*" AuthSession : has
+User "1" -- "0..*" AuthToken : owns
+AuthSession "0..*" -- "1" User : belongs to
+AuthToken "0..*" -- "1" User : belongs to
+
+' Enum relationships
+User --> AccountStatus : has status
+User --> UserType : uses
+AuthToken --> TokenType : typed as
+
+@enduml

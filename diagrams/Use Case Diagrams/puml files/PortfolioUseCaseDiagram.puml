@@ -1,0 +1,64 @@
+@startuml
+left to right direction
+
+actor "User (SME)" as User
+actor "System (Backend A04)" as A04
+
+rectangle "SmartLocate SG\nPortfolio Module" {
+
+  ' Core browsing and selection
+  usecase "View portfolio locations" as UC_View
+  usecase "Search or filter locations\n(by name or address)" as UC_Filter
+  usecase "Select location from portfolio" as UC_Select
+
+  ' Location details
+  usecase "View location details" as UC_Details
+  usecase "View location score\n(composite)" as UC_Score
+  usecase "View statistics breakdown\n(demographics, access,\nrental, competition)" as UC_Breakdown
+  usecase "Open selected location\nin Map page" as UC_Map
+
+  ' Notes (grouped)
+  usecase "Manage notes\nfor selected location" as UC_Notes
+  usecase "Add note" as UC_AddNote
+  usecase "Edit note" as UC_EditNote
+  usecase "Delete note" as UC_DeleteNote
+
+  usecase "Compare selected sites\n(2-3 max)" as UC_Compare
+
+  ' Business profile
+  usecase "Create business profile" as UC_CreateProfile
+  usecase "Update business profile" as UC_UpdateProfile
+}
+
+' Actor associations
+User --> UC_View
+User --> UC_Details
+User --> UC_Compare
+User --> UC_CreateProfile
+User --> UC_UpdateProfile
+
+A04 --> UC_View
+A04 --> UC_Details
+A04 --> UC_Compare
+
+' Optional filtering while viewing portfolio
+UC_Filter ..> UC_View : <<extend>>
+
+' Details always require selecting a location
+UC_Details ..> UC_Select : <<include>>
+
+' Within details, score and breakdown are part of viewing details
+UC_Score ..> UC_Details : <<extend>>
+UC_Breakdown ..> UC_Details : <<extend>>
+UC_Map ..> UC_Details : <<extend>>
+UC_Compare ..> UC_View : <<include>>
+
+' Notes are managed from details (optional)
+UC_Notes ..> UC_Details : <<extend>>
+
+' Note operations specialise "Manage notes"
+UC_AddNote -|> UC_Notes
+UC_EditNote -|> UC_Notes
+UC_DeleteNote -|> UC_Notes
+
+@enduml

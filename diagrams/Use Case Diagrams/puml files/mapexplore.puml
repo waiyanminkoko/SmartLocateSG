@@ -1,0 +1,88 @@
+@startuml Map_Exploration
+left to right direction
+skinparam usecase {
+    padding 10
+    backgroundColor #E3F3FD
+    borderColor black
+}
+skinparam actor {
+    padding 10
+}
+skinparam rectangle {
+    padding 15
+}
+
+' ========== ACTORS ==========
+actor "Small Business Owner" as A1
+actor "Franchise/MNC Expansion Team" as A2
+actor "Commercial Agent" as A3
+actor "Business User" as BU
+
+' Generalisation
+A1 --|> BU
+A2 --|> BU
+A3 --|> BU
+
+' ========== USE CASES GROUPED ==========
+rectangle "Map Display" {
+    usecase "Display Base Map" as MD1
+    usecase "Display Choropleth Overlay" as MD2
+    usecase "Toggle Overlay Data Type" as MD3
+    usecase "View Planning Area Details" as MD4
+}
+
+rectangle "Map Layers" {
+    usecase "Display MRT Station Markers" as ML1
+    usecase "Display MRT Exit Markers" as ML2
+    usecase "Display Bus Stop Markers" as ML3
+    usecase "Toggle Map Layers" as ML4
+}
+
+rectangle "Site Evaluation" {
+    usecase "Drop POI Pin" as SE1
+    usecase "Display Site Score Breakdown" as SE2
+    usecase "Calculate Site Scores" as SE3
+    usecase "Provide Feedback on Explanation" as SE4
+}
+
+rectangle "Scenario & Weight Management" {
+    usecase "Select Predefined Scenario" as SWM1
+    usecase "Apply Normal/Holiday Peak Scenario" as SWM2
+    usecase "Apply Pandemic/Delivery Focus Scenario" as SWM3
+    usecase "Apply Cost-Saving Mode Scenario" as SWM4
+    usecase "Custom Weight Adjustment" as SWM5
+    usecase "Reset to Default Weights" as SWM6
+}
+
+' ========== ACTOR LINKS ==========
+BU --> MD1
+BU --> ML4
+BU --> SE1
+BU --> SWM1
+
+' ========== USE CASE RELATIONSHIPS ==========
+
+' Optional map actions
+MD2 ..> MD1 : <<extend>>
+MD3 ..> MD1 : <<extend>>
+MD4 ..> MD1 : <<extend>>
+
+' Layers depend on toggle
+ML1 ..> ML4 : <<extend>>
+ML2 ..> ML4 : <<extend>>
+ML3 ..> ML4 : <<extend>>
+
+' Site scoring
+SE1 --> SE3 : <<include>>
+SE2 --> SE3 : <<include>>
+SE4 ..> SE2 : <<extend>>
+
+' Scenario affects scoring
+SWM1 --> SWM2 : <<extend>>
+SWM1 --> SWM3 : <<extend>>
+SWM1 --> SWM4 : <<extend>>
+SWM1 --> SE3 : <<include>>
+SWM5 ..> SWM1 : <<extend>>
+SWM6 ..> SWM1 : <<extend>>
+
+@enduml

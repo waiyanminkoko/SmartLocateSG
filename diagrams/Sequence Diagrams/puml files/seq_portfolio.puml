@@ -1,0 +1,166 @@
+@startuml UC-16 Save Candidate Site
+title UC-16: Save Candidate Site
+
+skinparam sequenceArrowThickness 2
+skinparam roundcorner 10
+skinparam defaultFontName Georgia
+skinparam defaultFontSize 11
+
+actor "User\n(A01/A02/A03)" as User
+participant "Frontend\n(React)" as FE
+participant "Backend\n(A04)" as A04
+database "Database" as DB
+
+note over User, FE : Precondition: POI pin and site\nscore from UC-13 are displayed
+
+User -> FE : Click "Save to Portfolio"
+FE --> User : Prompt for optional site name\nand notes
+
+User -> FE : Enter site name (optional)\nand/or notes; confirm save
+FE -> A04 : POST /api/portfolio/sites\n{lat, lng, siteName, notes,\nprofileId, scores:{composite,\ndemographic, accessibility,\nrentalPressure, competition},\nscenarioWeights, address}
+
+A04 -> A04 : Validate input:\n- name ≤ 100 characters\n- notes ≤ 500 characters
+
+alt Database write failure [UC-16.EX.1]
+    A04 -> DB : INSERT INTO candidate_sites\n(user_id, profile_id, lat, lng,\nsite_name, notes, composite_score,\ndimension_scores, scenario_weights,\naddress, created_at)
+    DB --> A04 : Error
+    A04 -> A04 : Log error
+    A04 --> FE : 500 Internal Server Error\n{error: "Save failed. Please retry."}
+    FE --> User : Show save-failure message + retry option
+else Save successful
+    A04 -> DB : INSERT INTO candidate_sites\n(user_id, profile_id, lat, lng,\nsite_name, notes, composite_score,\ndimension_scores, scenario_weights,\naddress, created_at)
+    DB --> A04 : New site record (with site_id)
+
+    A04 --> FE : 201 Created\n{site: {id, siteName, lat, lng,\ncompositeScore, createdAt}}
+    FE --> User : Show toast notification:\n"Site saved to portfolio ✓"\n+ "View Portfolio" shortcut link
+end
+
+@enduml
+
+@startuml UC-17 View Portfolio
+title UC-17: View Portfolio
+
+skinparam sequenceArrowThickness 2
+skinparam roundcorner 10
+skinparam defaultFontName Georgia
+skinparam defaultFontSize 11
+
+actor "User\n(A01/A02/A03)" as User
+participant "Frontend\n(React)" as FE
+participant "Backend\n(A04)" as A04
+database "Database" as DB
+
+User -> FE : Navigate to Portfolio page
+FE --> User : Show loading state
+
+FE -> A04 : GET /api/portfolio/sites?profileId=<id>\n(optional profile filter, with session token)
+
+A04 -> A04 : Validate session token\nExtract user_id
+
+A04 -> DB : SELECT id, site_name, address,\ncomposite_score, dimension_scores,\ncreated_at, notes\nFROM candidate_sites\nWHERE user_id = ?\n[AND profile_id = ?]\nORDER BY created_at DESC
+DB --> A04 : List of candidate site records
+
+alt No sites found [UC-17.EX.1]
+    A04 --> FE : 200 OK\n{sites: []}
+    FE --> User : Show "No saved sites yet"\n+ CTA: "Explore Map to find sites"
+else Sites found
+    A04 --> FE : 200 OK\n{sites: [{id, siteName, address,\ncompositeScore, dimensionScores,\nsavedDate, notes, profileId}, ...]}
+
+    FE --> User : Display sites in table/card format\nwith columns:\n- Site name + address\n- Composite score (prominent)\n- Dimension score breakdown\n- Saved date\n- Actions: View on Map | Edit Notes | Delete | ☐ (Compare)
+
+    User -> FE : Select multiple sites for comparison\n(multi-select checkbox)
+    FE -> FE : Enable "Compare" button\n(when 2–3 sites selected)
+    FE --> User : "Compare Selected" button active
+end
+
+@enduml
+
+@startuml UC-18 Edit Candidate Site Notes
+title UC-18: Edit Candidate Site Notes
+
+skinparam sequenceArrowThickness 2
+skinparam roundcorner 10
+skinparam defaultFontName Georgia
+skinparam defaultFontSize 11
+
+actor "User\n(A01/A02/A03)" as User
+participant "Frontend\n(React)" as FE
+participant "Backend\n(A04)" as A04
+database "Database" as DB
+
+note over User, FE : Precondition: User is viewing\nPortfolio (UC-17 completed)
+
+User -> FE : Click "Edit Notes" on a candidate site
+FE -> A04 : GET /api/portfolio/sites/{site_id}
+
+A04 -> DB : SELECT site_name, notes, updated_at\nFROM candidate_sites\nWHERE id = ? AND user_id = ?
+DB --> A04 : Current site data
+
+A04 --> FE : 200 OK\n{siteName, notes, updatedAt}
+FE --> User : Open notes editor\n(modal or inline)\nPre-fill with current name and notes
+
+User -> FE : Modify site name and/or notes text
+User -> FE : Click "Save Changes"
+FE -> A04 : PATCH /api/portfolio/sites/{site_id}\n{siteName, notes}
+
+A04 -> A04 : Validate input:\n- notes ≤ 500 characters\n- siteName ≤ 100 characters
+
+alt Database update failure [UC-18.EX.1]
+    A04 -> DB : UPDATE candidate_sites SET\nsite_name = ?, notes = ?, updated_at = NOW()\nWHERE id = ? AND user_id = ?
+    DB --> A04 : Error
+    A04 -> A04 : Log error
+    A04 --> FE : 500 Internal Server Error\n{error: "Update failed. Original notes retained."}
+    FE --> User : Show error message\nRestore original notes in editor
+else Update successful
+    A04 -> DB : UPDATE candidate_sites SET\nsite_name = ?, notes = ?, updated_at = NOW()\nWHERE id = ? AND user_id = ?
+    DB --> A04 : Record updated
+
+    A04 --> FE : 200 OK\n{siteName, notes, updatedAt}
+    FE --> User : Close editor\nShow confirmation toast\nUpdate site card/row in portfolio list
+end
+
+@enduml
+
+@startuml UC-19 Delete Candidate Site
+title UC-19: Delete Candidate Site
+
+skinparam sequenceArrowThickness 2
+skinparam roundcorner 10
+skinparam defaultFontName Georgia
+skinparam defaultFontSize 11
+
+actor "User\n(A01/A02/A03)" as User
+participant "Frontend\n(React)" as FE
+participant "Backend\n(A04)" as A04
+database "Database" as DB
+
+note over User, FE : Precondition: User is viewing\nPortfolio (UC-17 completed)
+
+User -> FE : Click "Delete" on a candidate site
+FE --> User : Show confirmation dialog:\n"Delete this site permanently?\nThis action cannot be undone."
+
+alt User cancels [UC-19.AC.1]
+    User -> FE : Click "Cancel"
+    FE --> User : Dismiss dialog\nNo changes made
+else User confirms
+    User -> FE : Click "Confirm Delete"
+    FE -> A04 : DELETE /api/portfolio/sites/{site_id}
+
+    A04 -> A04 : Validate session\nVerify site belongs to user
+
+    A04 -> DB : DELETE FROM candidate_sites\nWHERE id = ? AND user_id = ?
+    DB --> A04 : Record deleted
+
+    alt Database deletion failure [UC-19.EX.1]
+        DB --> A04 : Error
+        A04 -> A04 : Log error
+        A04 --> FE : 500 Internal Server Error\n{error: "Deletion failed. Site retained."}
+        FE --> User : Show error message\nSite remains in portfolio
+    else Deletion successful
+        A04 --> FE : 200 OK\n{message: "Site deleted"}
+        FE --> User : Show confirmation toast\nRemove site card/row\nRefresh portfolio list
+        note over FE : If deleted site was in\na compare selection,\nde-select it automatically
+    end
+end
+
+@enduml

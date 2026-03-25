@@ -1,0 +1,87 @@
+@startuml SmartLocateSG_SystemArchitecture
+!theme plain
+skinparam componentStyle rectangle
+skinparam packageStyle rectangle
+left to right direction
+
+title SmartLocateSG - System Architecture (Master)
+
+actor "User\n(A01/A02/A03)" as User
+actor "Admin\n(A04)" as Admin
+
+node "Client Layer" {
+  component "React SPA\n(frontend/client)" as SPA
+  component "Auth Context" as AuthCtx
+  component "Page Modules\nDashboard/Profiles/Map/Portfolio/Compare/Admin" as Pages
+}
+
+node "Application Layer" {
+  component "Express API Server\n(frontend/server)" as API
+  component "Route Handlers\nroutes.ts" as Routes
+  component "Storage Abstraction\nstorage.ts" as Storage
+  component "Map Data Service\nmap-data.ts" as MapSvc
+  component "Explanation Feedback Service\nexplanation-feedback.ts" as ExplainSvc
+}
+
+node "Domain Services" {
+  component "Scoring Engine" as Scoring
+  component "Explanation Generator\n(Gemini + fallback)" as ExplainAI
+  component "Chatbot Service\n(context-aware)" as Chatbot
+  component "ETL Coordinator" as ETL
+}
+
+node "Data Layer" {
+  database "PostgreSQL / Supabase" as DB
+  component "Tables\nusers, business_profiles, candidate_sites,\nsite_scores, planning_areas, area_demographics" as Tables
+}
+
+cloud "External Providers (A05)" {
+  component "OneMap / SingStat" as OneMap
+  component "LTA DataMall" as LTA
+  component "URA Space API" as URA
+  component "Google Places / Geocoding" as Google
+}
+
+cloud "AI Provider" {
+  component "Gemini API" as Gemini
+}
+
+User --> SPA
+Admin --> SPA
+SPA --> AuthCtx
+SPA --> Pages
+Pages --> API
+API --> Routes
+Routes --> Storage
+Routes --> MapSvc
+Routes --> ExplainSvc
+
+MapSvc --> Scoring
+Routes --> ExplainAI
+Routes --> Chatbot
+Routes --> ETL
+
+Storage --> DB
+MapSvc --> DB
+Scoring --> DB
+ETL --> DB
+DB --> Tables
+
+MapSvc --> OneMap
+MapSvc --> LTA
+MapSvc --> URA
+MapSvc --> Google
+ExplainAI --> Gemini
+Chatbot --> Gemini
+
+note bottom
+Architecture style: layered modular monolith.
+Access control boundary: authenticated user ID scope on profile and site resources.
+Persistence: repository-like storage abstraction over Supabase/Postgres.
+
+Integration boundaries:
+- External data providers feed map overlays, transport layers, rental and competition signals.
+- AI provider supports explanation and chatbot responses with local fallback paths.
+end note
+
+@enduml

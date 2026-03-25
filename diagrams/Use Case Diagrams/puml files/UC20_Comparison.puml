@@ -1,0 +1,138 @@
+@startuml
+!theme plain
+skinparam packageStyle rectangle
+skinparam actorStyle awesome
+skinparam backgroundColor #FEFEFE
+
+title SmartLocate SG - Compare Candidate Sites (UC-20)
+footer Generated: February 20, 2026
+
+skinparam usecase {
+    BackgroundColor #E3F2FD
+    BorderColor #1976D2
+    ArrowColor #424242
+    FontSize 12
+}
+
+skinparam actor {
+    BackgroundColor #FFF3E0
+    BorderColor #F57C00
+    FontSize 11
+}
+
+skinparam note {
+    BackgroundColor #FFFDE7
+    BorderColor #F9A825
+}
+
+' Actors
+actor "User\n(A01/A02/A03)" as USER #FFE0B2
+actor "System\n(Backend)" as A04 #B3E5FC
+
+note right of USER
+  **Represents three user types:**
+  • A01: Small Business Owner
+  • A02: Franchise/MNC Expansion Team
+  • A03: Commercial Agent
+
+  All have identical use case access
+end note
+
+' System Boundary
+rectangle "SmartLocate SG\nCompare (Location Scores)" {
+
+    usecase "UC-17\nView Portfolio" as UC17
+    usecase "UC-20\nCompare Candidate\nSites (max 3)" as UC20
+    usecase "UC-21\nExport Comparison\nReport (PDF)" as UC21
+
+    usecase "Validate\nSite Selection" as ValidateSelection <<internal>>
+    usecase "Retrieve\nScore Data" as RetrieveScores <<internal>>
+    usecase "Format\nComparison Table\n& Charts" as FormatOutput <<internal>>
+
+}
+
+' User initiates
+USER --> UC17 : initiates
+USER --> UC20 : initiates
+USER --> UC21 : initiates
+
+' Include relationships
+UC20 ..> UC17 : <<include>>
+UC20 ..> ValidateSelection : <<include>>
+UC20 ..> RetrieveScores : <<include>>
+UC20 ..> FormatOutput : <<include>>
+UC21 ..> UC20 : <<include>>
+
+' A04 participates
+ValidateSelection -- A04 : validates
+RetrieveScores -- A04 : fetches
+FormatOutput -- A04 : formats
+
+' Extend relationships
+UC20 <.. UC21 : <<extend>>\nuser requests\nPDF export
+
+note right of UC20
+  **Actors:** A01/A02/A03 (initiating), A04 (participating)
+
+  **Preconditions:**
+  1. User is logged in
+  2. At least 2 candidate sites saved
+     under the selected Business Profile
+
+  **Postconditions:**
+  1. Side-by-side score table displayed
+     for all four scoring dimensions
+  2. Bar or radar chart rendered
+
+  **Flow:**
+  1. User opens Comparison dashboard
+  2. A04 retrieves candidate site list
+  3. User selects 2-3 sites
+  4. A04 validates selection (max 3)
+  5. A04 retrieves full scores for
+     selected sites (all 4 dimensions)
+  6. A04 formats comparison table
+     per FR-SCD-002
+  7. A04 generates chart data
+     per FR-SCD-003
+
+  **Dimensions compared:**
+  • Demographic Match
+  • Accessibility
+  • Rental Pressure
+  • Competition Density
+end note
+
+note bottom of ValidateSelection
+  **AC.1 - Max 3 guard**
+  Blocks 4th site selection.
+  Shows: "Maximum 3 sites
+  for comparison"
+
+  **EX.1 - Missing score data**
+  Flags affected site with
+  data-unavailable warning
+end note
+
+note top of A04
+  **System (Backend) - A04**
+  Handles:
+  • Portfolio data retrieval
+  • Selection count validation
+  • Score data aggregation
+  • Chart data generation
+end note
+
+legend bottom right
+  **Relationships:**
+  Solid line  ->  User initiates use case
+  Dashed ⋯>  <<include>>  mandatory dependency
+  Dashed ⟨⋯  <<extend>>   optional extension
+  Solid line  --  System participates
+
+  **UC-20 Requirements:**
+  FR-SCD-001: Select up to 3 sites
+  FR-SCD-002: Display comparison table
+  FR-SCD-003: Display comparison charts
+endlegend
+@enduml
