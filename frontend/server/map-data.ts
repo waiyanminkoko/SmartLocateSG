@@ -145,6 +145,12 @@ type SupabaseBusinessProfileRow = {
   sector: string | null;
 };
 
+type NormalizedBusStop = {
+  id: string;
+  lat: number;
+  lng: number;
+};
+
 type ParsedAreaGeometry = {
   planningAreaId: string;
   planningAreaName: string;
@@ -182,6 +188,37 @@ const GEOMETRY_TYPES = new Set([
 
 function clamp(value: number, min = 0, max = 100) {
   return Math.max(min, Math.min(max, value));
+}
+
+function normalizeBusStopId(value: unknown) {
+  const raw = typeof value === "string" ? value : value !== null && value !== undefined ? String(value) : "";
+  const normalized = raw.trim();
+  return normalized.length > 0 ? normalized : null;
+}
+
+function normalizeBusStops(rows: Array<{ bus_stop_number: unknown; latitude: unknown; longitude: unknown }>): NormalizedBusStop[] {
+  const grouped = new Map<string, { latSum: number; lngSum: number; count: number }>();
+
+  rows.forEach((row) => {
+    const id = normalizeBusStopId(row.bus_stop_number);
+    const lat = toNumber(row.latitude);
+    const lng = toNumber(row.longitude);
+    if (!id || lat === null || lng === null) {
+      return;
+    }
+
+    const current = grouped.get(id) ?? { latSum: 0, lngSum: 0, count: 0 };
+    current.latSum += lat;
+    current.lngSum += lng;
+    current.count += 1;
+    grouped.set(id, current);
+  });
+
+  return Array.from(grouped.entries()).map(([id, value]) => ({
+    id,
+    lat: value.latSum / value.count,
+    lng: value.lngSum / value.count,
+  }));
 }
 
 function toNumber(value: unknown): number | null {
@@ -577,13 +614,13 @@ async function getPlanningAreaMetricRowsViaSupabase(): Promise<PlanningAreaMetri
     })
     .filter((row): row is NonNullable<typeof row> => row !== null);
 
-  const busStopCounts = new Map<string, number>();
+  const busStopIdsByArea = new Map<string, Set<string>>();
   const mrtExitCounts = new Map<string, number>();
   const retailCounts = new Map<string, number>();
   const retailPsfSums = new Map<string, number>();
 
   preparedAreas.forEach((area) => {
-    busStopCounts.set(area.planningAreaId, 0);
+    busStopIdsByArea.set(area.planningAreaId, new Set<string>());
     mrtExitCounts.set(area.planningAreaId, 0);
     retailCounts.set(area.planningAreaId, 0);
     retailPsfSums.set(area.planningAreaId, 0);
@@ -599,12 +636,12 @@ async function getPlanningAreaMetricRowsViaSupabase(): Promise<PlanningAreaMetri
     );
   };
 
-  busStops.forEach((row) => {
-    const lat = toNumber(row.latitude);
-    const lng = toNumber(row.longitude);
+  normalizeBusStops(busStops).forEach((busStop) => {
+    const lat = busStop.lat;
+    const lng = busStop.lng;
     const area = assignPointToArea(lat, lng);
     if (area) {
-      busStopCounts.set(area.planningAreaId, (busStopCounts.get(area.planningAreaId) ?? 0) + 1);
+      busStopIdsByArea.get(area.planningAreaId)?.add(busStop.id);
     }
   });
 
@@ -645,7 +682,7 @@ async function getPlanningAreaMetricRowsViaSupabase(): Promise<PlanningAreaMetri
         geometry_geojson: area.geometryGeojson,
         population_total: population?.populationTotal ?? null,
         effective_year: population?.effectiveYear ?? null,
-        bus_stop_count: busStopCounts.get(area.planningAreaId) ?? 0,
+        bus_stop_count: busStopIdsByArea.get(area.planningAreaId)?.size ?? 0,
         mrt_exit_count: mrtExitCounts.get(area.planningAreaId) ?? 0,
         avg_unit_price_psf:
           retailTransactionCount > 0 ? retailPsfSum / retailTransactionCount : null,
@@ -736,7 +773,7 @@ async function getPlanningAreaMetricRows(): Promise<PlanningAreaMetricRow[]> {
     LEFT JOIN demographics demo
       ON demo.planning_area_id = pg.planning_area_id
     LEFT JOIN LATERAL (
-      SELECT COUNT(*)::int AS bus_stop_count
+      SELECT COUNT(DISTINCT bs.bus_stop_number)::int AS bus_stop_count
       FROM datagov_bus_stops bs
       WHERE pg.geom IS NOT NULL AND ST_Covers(pg.geom, bs.geom)
     ) bus ON TRUE
@@ -755,8 +792,16 @@ async function getPlanningAreaMetricRows(): Promise<PlanningAreaMetricRow[]> {
     ORDER BY pg.planning_area_name ASC
   `;
 
-  const { rows } = await pool.query<RawOverlayRow>(sql);
-  return mapPlanningAreaRows(rows);
+  try {
+    const { rows } = await pool.query<RawOverlayRow>(sql);
+    return mapPlanningAreaRows(rows);
+  } catch (error) {
+    // If the direct DB path fails (timeout, transient network issues),
+    // degrade to Supabase HTTP reads so map overlays can still render.
+    return getPlanningAreaMetricRowsViaSupabase().catch(() => {
+      throw error;
+    });
+  }
 }
 
 export async function getPlanningAreaOverlayCollection(
@@ -841,8 +886,12 @@ export async function getPointLayerCollection(
     },
     "bus-stops": {
       sql: `
-        SELECT bus_stop_number, latitude, longitude
+        SELECT
+          bus_stop_number,
+          AVG(latitude)::float AS latitude,
+          AVG(longitude)::float AS longitude
         FROM datagov_bus_stops
+        GROUP BY bus_stop_number
         ORDER BY bus_stop_number ASC
       `,
       buildProperties: (row: RawLayerRow) => ({
@@ -865,60 +914,76 @@ export async function getPointLayerCollection(
   } as const;
 
   const config = layerConfig[layer];
-  const rows = pool
-    ? (await pool.query<RawLayerRow>(config.sql)).rows
-    : await (async () => {
-        if (layer === "bus-stops") {
-          return fetchAllSupabaseRows<RawLayerRow>(
-            "datagov_bus_stops",
-            "bus_stop_number, latitude, longitude",
-            "bus_stop_number",
-          );
-        }
+  const getRowsViaSupabase = async (): Promise<RawLayerRow[]> => {
+    if (layer === "bus-stops") {
+      const busStops = await fetchAllSupabaseRows<SupabaseBusStopRow>(
+        "datagov_bus_stops",
+        "bus_stop_number, latitude, longitude",
+        "bus_stop_number",
+      );
 
-        if (layer === "mrt-exits") {
-          return fetchAllSupabaseRows<RawLayerRow>(
-            "datagov_mrt_exits",
-            "station_name, exit_number, latitude, longitude",
-            "station_name",
-          );
-        }
+      return normalizeBusStops(busStops).map((busStop) => ({
+        bus_stop_number: busStop.id,
+        latitude: busStop.lat,
+        longitude: busStop.lng,
+      }));
+    }
 
-        const exitRows = await fetchAllSupabaseRows<SupabaseMrtExitRow>(
-          "datagov_mrt_exits",
-          "station_name, exit_number, latitude, longitude",
-          "station_name",
-        );
+    if (layer === "mrt-exits") {
+      return fetchAllSupabaseRows<RawLayerRow>(
+        "datagov_mrt_exits",
+        "station_name, exit_number, latitude, longitude",
+        "station_name",
+      );
+    }
 
-        const grouped = new Map<string, { station_name: string; latitudeSum: number; longitudeSum: number; exit_count: number }>();
-        exitRows.forEach((row) => {
-          const lat = toNumber(row.latitude);
-          const lng = toNumber(row.longitude);
-          if (lat === null || lng === null) {
-            return;
-          }
+    const exitRows = await fetchAllSupabaseRows<SupabaseMrtExitRow>(
+      "datagov_mrt_exits",
+      "station_name, exit_number, latitude, longitude",
+      "station_name",
+    );
 
-          const key = row.station_name;
-          const current = grouped.get(key) ?? {
-            station_name: row.station_name,
-            latitudeSum: 0,
-            longitudeSum: 0,
-            exit_count: 0,
-          };
+    const grouped = new Map<string, { station_name: string; latitudeSum: number; longitudeSum: number; exit_count: number }>();
+    exitRows.forEach((row) => {
+      const lat = toNumber(row.latitude);
+      const lng = toNumber(row.longitude);
+      if (lat === null || lng === null) {
+        return;
+      }
 
-          current.latitudeSum += lat;
-          current.longitudeSum += lng;
-          current.exit_count += 1;
-          grouped.set(key, current);
-        });
+      const key = row.station_name;
+      const current = grouped.get(key) ?? {
+        station_name: row.station_name,
+        latitudeSum: 0,
+        longitudeSum: 0,
+        exit_count: 0,
+      };
 
-        return Array.from(grouped.values()).map((row) => ({
-          station_name: row.station_name,
-          latitude: row.latitudeSum / row.exit_count,
-          longitude: row.longitudeSum / row.exit_count,
-          exit_count: row.exit_count,
-        }));
-      })();
+      current.latitudeSum += lat;
+      current.longitudeSum += lng;
+      current.exit_count += 1;
+      grouped.set(key, current);
+    });
+
+    return Array.from(grouped.values()).map((row) => ({
+      station_name: row.station_name,
+      latitude: row.latitudeSum / row.exit_count,
+      longitude: row.longitudeSum / row.exit_count,
+      exit_count: row.exit_count,
+    }));
+  };
+
+  const rows = await (async () => {
+    if (!pool) {
+      return getRowsViaSupabase();
+    }
+
+    try {
+      return (await pool.query<RawLayerRow>(config.sql)).rows;
+    } catch {
+      return getRowsViaSupabase();
+    }
+  })();
 
   const features = rows
     .map((row) => {
@@ -1003,7 +1068,15 @@ function competitionScoreFromCount(count: number | null) {
     return null;
   }
 
-  return Math.round(clamp(100 - count * 6));
+  if (count <= 0) {
+    return 100;
+  }
+
+  // Match the edge-function scoring curve so competition degrades gradually
+  // instead of hitting zero too early for dense urban areas.
+  const maxReferenceCount = 500;
+  const score = 100 * (1 - Math.log(count + 1) / Math.log(maxReferenceCount + 1));
+  return Math.round(clamp(score));
 }
 
 export async function scoreSiteLocation(input: {
@@ -1014,7 +1087,8 @@ export async function scoreSiteLocation(input: {
 }): Promise<SiteScoreResult> {
   const radiusMeters = clampRadiusMeters(input.radiusMeters);
   const planningAreas = await getPlanningAreaMetricRows();
-  if (!pool) {
+
+  const scoreViaSupabase = async (): Promise<SiteScoreResult> => {
     const parsedAreas = getParsedAreaGeometries(planningAreas);
     const planningAreaId =
       parsedAreas.find((area) => pointInGeometry(input.lng, input.lat, area.geometry, area.bbox))?.planningAreaId ??
@@ -1039,13 +1113,8 @@ export async function scoreSiteLocation(input: {
       ),
     ]);
 
-    const busStopsWithinRadius = busStops.reduce((count, row) => {
-      const lat = toNumber(row.latitude);
-      const lng = toNumber(row.longitude);
-      if (lat === null || lng === null) {
-        return count;
-      }
-      return count + (haversineDistanceMeters(input.lat, input.lng, lat, lng) <= radiusMeters ? 1 : 0);
+    const busStopsWithinRadius = normalizeBusStops(busStops).reduce((count, busStop) => {
+      return count + (haversineDistanceMeters(input.lat, input.lng, busStop.lat, busStop.lng) <= radiusMeters ? 1 : 0);
     }, 0);
 
     const mrtExitsWithinRadius = mrtExits.reduce((count, row) => {
@@ -1100,9 +1169,14 @@ export async function scoreSiteLocation(input: {
         retailTransactionCount: planningArea?.retailTransactionCount ?? 0,
       },
     };
+  };
+
+  if (!pool) {
+    return scoreViaSupabase();
   }
 
-  const geometryExpression = getDbGeometryExpression("pa");
+  try {
+    const geometryExpression = getDbGeometryExpression("pa");
 
   const areaLookupSql = `
     WITH canonical_areas AS (
@@ -1145,7 +1219,7 @@ export async function scoreSiteLocation(input: {
     )
     SELECT
       (
-        SELECT COUNT(*)::int
+        SELECT COUNT(DISTINCT bs.bus_stop_number)::int
         FROM datagov_bus_stops bs, point p
         WHERE ST_DWithin(bs.geom::geography, p.geom, $3)
       ) AS bus_stops_within_radius,
@@ -1194,26 +1268,29 @@ export async function scoreSiteLocation(input: {
   const competition = competitionScoreFromCount(competitionCountWithinRadius);
   const composite = average([demographic, accessibility, rental, competition]);
 
-  return {
-    lat: input.lat,
-    lng: input.lng,
-    planningArea,
-    scores: {
-      composite,
-      demographic,
-      accessibility,
-      rental,
-      competition,
-    },
-    breakdownDetails: {
-      analysisRadiusMeters: radiusMeters,
-      busStopsWithinRadius,
-      mrtExitsWithinRadius,
-      competitionCountWithinRadius,
-      competitionCategory,
-      populationTotal: planningArea?.populationTotal ?? null,
-      avgUnitPricePsf: planningArea?.avgUnitPricePsf ?? null,
-      retailTransactionCount: planningArea?.retailTransactionCount ?? 0,
-    },
-  };
+    return {
+      lat: input.lat,
+      lng: input.lng,
+      planningArea,
+      scores: {
+        composite,
+        demographic,
+        accessibility,
+        rental,
+        competition,
+      },
+      breakdownDetails: {
+        analysisRadiusMeters: radiusMeters,
+        busStopsWithinRadius,
+        mrtExitsWithinRadius,
+        competitionCountWithinRadius,
+        competitionCategory,
+        populationTotal: planningArea?.populationTotal ?? null,
+        avgUnitPricePsf: planningArea?.avgUnitPricePsf ?? null,
+        retailTransactionCount: planningArea?.retailTransactionCount ?? 0,
+      },
+    };
+  } catch {
+    return scoreViaSupabase();
+  }
 }

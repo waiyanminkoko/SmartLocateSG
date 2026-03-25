@@ -106,8 +106,8 @@ const connectionString =
 
 export const hasDatabaseConnection = Boolean(connectionString);
 
-const connectionTimeoutMillis = Number(process.env.PG_CONNECTION_TIMEOUT_MS ?? '5000');
-const queryTimeoutMillis = Number(process.env.PG_QUERY_TIMEOUT_MS ?? '8000');
+const connectionTimeoutMillis = Number(process.env.PG_CONNECTION_TIMEOUT_MS ?? '15000');
+const queryTimeoutMillis = Number(process.env.PG_QUERY_TIMEOUT_MS ?? '20000');
 
 export const pool = connectionString
   ? new Pool({

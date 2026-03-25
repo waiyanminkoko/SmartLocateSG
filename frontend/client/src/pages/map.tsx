@@ -472,6 +472,7 @@ export default function MapPage() {
   const overlayCacheRef = useRef<OverlayCollection | null>(null);
   const pointLayerCacheRef = useRef<Record<string, PointLayerCollection>>({});
   const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const dropPinModeRef = useRef(false);
   const [mapError, setMapError] = useState<string | null>(null);
   const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string | undefined;
   const mapStyleId = import.meta.env.VITE_GOOGLE_MAPS_MAP_ID as string | undefined;
@@ -508,6 +509,11 @@ export default function MapPage() {
   const [scoringLoading, setScoringLoading] = useState(false);
   const [siteScore, setSiteScore] = useState<SiteScoreResponse | null>(null);
   const [siteScoreError, setSiteScoreError] = useState<string | null>(null);
+  const [isDropPinMode, setIsDropPinMode] = useState(false);
+
+  useEffect(() => {
+    dropPinModeRef.current = isDropPinMode;
+  }, [isDropPinMode]);
 
   const [profiles, setProfiles] = useLocalStorageState<BusinessProfile[]>("smartlocate:profiles", []);
   const [, setSites] = useLocalStorageState<CandidateSite[]>("smartlocate:sites", []);
@@ -1951,6 +1957,10 @@ export default function MapPage() {
         });
 
         map.addListener("click", (event: any) => {
+          if (!dropPinModeRef.current) {
+            return;
+          }
+
           if (!event?.latLng) return;
           const lat = event.latLng.lat();
           const lng = event.latLng.lng();
@@ -1958,6 +1968,7 @@ export default function MapPage() {
           setSelectedLatLng({ lat, lng });
           reverseGeocode(lat, lng);
           setPin(event.latLng);
+          setIsDropPinMode(false);
           toast({
             title: "Pin dropped",
             description: "Fetching live site score for the selected location.",
@@ -2537,6 +2548,7 @@ export default function MapPage() {
                   setSelectedTransportFeature(null);
                   setSiteScore(null);
                   setSiteScoreError(null);
+                  setIsDropPinMode(false);
                   setSearchQuery("");
                   setMapZoom(12);
                 }}
@@ -2558,19 +2570,19 @@ export default function MapPage() {
                     });
                     return;
                   }
-                  const center = mapRef.current.getCenter();
-                  setSelectedLatLng({ lat: center.lat(), lng: center.lng() });
-                  reverseGeocode(center.lat(), center.lng());
-                  setPin(center);
+
+                  setIsDropPinMode((prev) => !prev);
                   toast({
-                    title: "Pin dropped",
-                    description: "Fetching live site score for the map center.",
+                    title: isDropPinMode ? "Drop pin cancelled" : "Drop pin mode enabled",
+                    description: isDropPinMode
+                      ? "Pin placement cancelled."
+                      : "Click on the map to place your pin and start live scoring.",
                   });
                 }}
                 data-testid="button-drop-pin"
               >
                 <MapPin className="h-4 w-4" aria-hidden="true" />
-                Drop pin
+                {isDropPinMode ? "Cancel drop" : "Drop pin"}
               </Button>
             </div>
           </div>
@@ -2596,6 +2608,11 @@ export default function MapPage() {
             {overlayLoading && (
               <div className="pointer-events-none absolute left-3 top-3 rounded-full border bg-card/90 px-3 py-1 text-xs text-muted-foreground shadow-sm">
                 Loading overlay…
+              </div>
+            )}
+            {isDropPinMode && (
+              <div className="pointer-events-none absolute left-3 top-3 z-10 rounded-full border border-primary/30 bg-card/95 px-3 py-1 text-xs font-medium text-foreground shadow-sm">
+                Drop-pin mode: click on the map to place your pin.
               </div>
             )}
             {mapError && (
@@ -2635,7 +2652,9 @@ export default function MapPage() {
                 </div>
               ) : (
                 <div className="mt-2 text-xs text-muted-foreground">
-                  Search for a place or drop a pin to start scoring a site.
+                  {isDropPinMode
+                    ? "Drop-pin mode is active. Click a location on the map to place your pin and start scoring."
+                    : "Search for a place or click Drop pin, then select a location on the map to start scoring a site."}
                 </div>
               )}
             </div>
@@ -2661,7 +2680,7 @@ export default function MapPage() {
                     <span>{formatMetricValue(selectedArea.populationTotal)}</span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span>Bus stops in area</span>
+                    <span>Bus stops in planning area</span>
                     <span>{selectedArea.busStopCount}</span>
                   </div>
                   <div className="flex items-center justify-between">
