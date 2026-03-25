@@ -3,6 +3,7 @@ import { useLocation } from "wouter";
 import { FileText, Map as MapIcon, Trash2 } from "lucide-react";
 
 import { AppShell } from "@/components/app-shell";
+import { ExplanationFeedbackButtons } from "@/components/explanation-feedback-buttons";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -12,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { mockProfiles, CandidateSite } from "@/lib/mock-data";
 import { openChatbot } from "@/lib/chatbot";
+import { buildPortfolioInsights } from "@/lib/explanation-insights";
 import { fetchJsonWithCache, invalidateApiCache } from "@/lib/api-cache";
 import { useToast } from "@/hooks/use-toast";
 import { useLocalStorageState } from "@/hooks/use-local-storage";
@@ -165,6 +167,20 @@ export default function Portfolio() {
     );
   }, [sites, query, profileFilter]);
 
+  const focusSite = useMemo(
+    () =>
+      filtered.find((site) => selectedIds.includes(site.id)) ??
+      filtered[0] ??
+      sites[0] ??
+      null,
+    [filtered, selectedIds, sites],
+  );
+
+  const portfolioInsights = useMemo(
+    () => (focusSite ? buildPortfolioInsights(focusSite) : []),
+    [focusSite],
+  );
+
   const remove = (id: string) => {
     void (async () => {
       try {
@@ -317,6 +333,31 @@ export default function Portfolio() {
             Explain score
           </Button>
         </div>
+
+        {focusSite ? (
+          <Card className="border bg-card p-5 shadow-sm" data-testid="card-portfolio-insights">
+            <div className="text-sm font-semibold">Saved site insights</div>
+            <div className="mt-1 text-xs text-muted-foreground">
+              Feedback is tied to the currently focused saved site: {focusSite.name}.
+            </div>
+            <div className="mt-4 space-y-3">
+              {portfolioInsights.map((insight) => (
+                <div key={insight.criterion} className="rounded-xl border bg-muted/20 p-3 text-sm">
+                  <div className="font-medium">{insight.criterion}</div>
+                  <div className="mt-1 text-xs text-muted-foreground">{insight.detail}</div>
+                  <div className="mt-3">
+                    <ExplanationFeedbackButtons
+                      page="portfolio"
+                      profileId={focusSite.profileId}
+                      siteId={focusSite.id}
+                      criterion={insight.criterion}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Card>
+        ) : null}
 
         {filtered.length === 0 ? (
           <Card className="border bg-card p-6 shadow-sm">

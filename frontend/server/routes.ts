@@ -2,6 +2,12 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { z } from "zod";
 import { storage } from "./storage";
+import {
+  getPlanningAreaOverlayCollection,
+  getPointLayerCollection,
+  scoreSiteLocation,
+} from "./map-data";
+import { saveExplanationFeedback } from "./explanation-feedback";
 
 type ExplanationItem = {
   label: string;
@@ -47,6 +53,35 @@ const updateProfileSchema = createProfileSchema.omit({ userId: true });
 const listProfilesQuerySchema = z.object({
   userId: z.string().min(1, "userId is required"),
 });
+
+const overlayMetricSchema = z.enum(["composite", "demographics", "accessibility", "vacancy"]);
+
+const overlayQuerySchema = z.object({
+  metric: overlayMetricSchema.optional().default("composite"),
+});
+
+const siteScoreSchema = z.object({
+  lat: z.number().finite(),
+  lng: z.number().finite(),
+  profileId: z.string().min(1).optional(),
+  radiusMeters: z.number().int().min(500).max(2000).optional().default(1000),
+});
+
+const mapLayerQuerySchema = z
+  .object({
+    lat: z.coerce.number().finite().optional(),
+    lng: z.coerce.number().finite().optional(),
+    radiusMeters: z.coerce.number().int().min(500).max(2000).optional().default(1000),
+  })
+  .refine(
+    (value) =>
+      (typeof value.lat === "number" && typeof value.lng === "number") ||
+      (value.lat === undefined && value.lng === undefined),
+    {
+      message: "lat and lng must be provided together",
+      path: ["lat"],
+    },
+  );
 
 const explainScoreSchema = z.object({
   profile: z
@@ -131,6 +166,14 @@ const chatbotSchema = z.object({
     )
     .max(12)
     .optional(),
+});
+
+const explanationFeedbackSchema = z.object({
+  page: z.enum(["map", "portfolio", "compare"]),
+  profileId: z.string().min(1).optional().nullable(),
+  siteId: z.string().min(1).optional().nullable(),
+  criterion: z.string().min(1).max(200),
+  vote: z.enum(["helpful", "not_helpful"]),
 });
 
 function fallbackExplanation(scores: {
@@ -428,6 +471,96 @@ export async function registerRoutes(
   // put application routes here
   // prefix all routes with /api
 
+  app.get("/api/map/overlays", async (req, res) => {
+    try {
+      const { metric } = overlayQuerySchema.parse(req.query);
+      const collection = await getPlanningAreaOverlayCollection(metric);
+      res.json(collection);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.flatten() });
+      }
+
+      console.error("[api/map/overlays][GET]", error);
+      res.status(500).json({ error: "Failed to fetch planning area overlays." });
+    }
+  });
+
+  app.get("/api/map/layers/bus-stops", async (req, res) => {
+    try {
+      const query = mapLayerQuerySchema.parse(req.query);
+      const collection = await getPointLayerCollection(
+        "bus-stops",
+        typeof query.lat === "number" && typeof query.lng === "number"
+          ? { lat: query.lat, lng: query.lng, radiusMeters: query.radiusMeters }
+          : undefined,
+      );
+      res.json(collection);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.flatten() });
+      }
+
+      console.error("[api/map/layers/bus-stops][GET]", error);
+      res.status(500).json({ error: "Failed to fetch bus stop layer." });
+    }
+  });
+
+  app.get("/api/map/layers/mrt-exits", async (req, res) => {
+    try {
+      const query = mapLayerQuerySchema.parse(req.query);
+      const collection = await getPointLayerCollection(
+        "mrt-exits",
+        typeof query.lat === "number" && typeof query.lng === "number"
+          ? { lat: query.lat, lng: query.lng, radiusMeters: query.radiusMeters }
+          : undefined,
+      );
+      res.json(collection);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.flatten() });
+      }
+
+      console.error("[api/map/layers/mrt-exits][GET]", error);
+      res.status(500).json({ error: "Failed to fetch MRT exit layer." });
+    }
+  });
+
+  app.get("/api/map/layers/mrt-stations", async (req, res) => {
+    try {
+      const query = mapLayerQuerySchema.parse(req.query);
+      const collection = await getPointLayerCollection(
+        "mrt-stations",
+        typeof query.lat === "number" && typeof query.lng === "number"
+          ? { lat: query.lat, lng: query.lng, radiusMeters: query.radiusMeters }
+          : undefined,
+      );
+      res.json(collection);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.flatten() });
+      }
+
+      console.error("[api/map/layers/mrt-stations][GET]", error);
+      res.status(500).json({ error: "Failed to fetch MRT station layer." });
+    }
+  });
+
+  app.post("/api/map/site-score", async (req, res) => {
+    try {
+      const payload = siteScoreSchema.parse(req.body);
+      const result = await scoreSiteLocation(payload);
+      res.json(result);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.flatten() });
+      }
+
+      console.error("[api/map/site-score][POST]", error);
+      res.status(500).json({ error: "Failed to score site." });
+    }
+  });
+
   app.get("/api/sites/:userId", async (req, res) => {
     try {
       const sites = await storage.getCandidateSites(req.params.userId);
@@ -573,6 +706,21 @@ export async function registerRoutes(
         message:
           "I could not reach the AI service. For now, compare the weakest score dimensions first, then prioritize actions that improve those values.",
       });
+    }
+  });
+
+  app.post("/api/explanation-feedback", async (req, res) => {
+    try {
+      const payload = explanationFeedbackSchema.parse(req.body);
+      const saved = await saveExplanationFeedback(payload);
+      res.status(201).json(saved);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.flatten() });
+      }
+
+      console.error("[api/explanation-feedback][POST]", error);
+      res.status(500).json({ error: "Failed to save explanation feedback." });
     }
   });
 

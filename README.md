@@ -2,7 +2,7 @@
 
 SmartLocate SG is a UI-first prototype for a data-driven business site selection tool. It lets users build business profiles, explore a Singapore map, score candidate locations, save them to a portfolio, and compare up to three sites.
 
-**What’s Working (UI Prototype)**
+**What’s Working**
 - Landing, login, and register flows (UI-only).
 - Dashboard with quick actions, recent profiles, and recent sites.
 - Business profile list with active profile selection and delete.
@@ -10,20 +10,37 @@ SmartLocate SG is a UI-first prototype for a data-driven business site selection
 - Interactive Google Maps base map, pan/zoom, click-to-drop pin.
 - Postal code / address search (Google Geocoding API) + Places autocomplete.
 - Scenario presets and custom weight sliders (auto-normalized).
+- Live planning-area choropleth overlays for composite, demographics, accessibility, and vacancy when available.
+- Overview mode for nationwide planning-area coverage plus focus mode for a selected site radius.
+- Radius-filtered MRT station, MRT exit, and bus stop layers on the map.
 - Overlay legend, planning area details panel, and data freshness banner.
-- Score breakdown with AI-style explanation dialog and feedback buttons.
-- Portfolio with profile filter, notes editor, and compare selection.
+- Score breakdown with AI-style explanation dialog and persistent explanation feedback capture.
+- Portfolio with profile filter, notes editor, compare selection, and explanation feedback items.
 - LocalStorage persistence for profiles and sites (temporary demo storage).
-- Compare dashboard with side-by-side stats and a bar chart.
+- Compare dashboard with side-by-side stats, a bar chart, explanation feedback items, and client-side PDF export.
 - Admin data status screen with source freshness and manual refresh.
 - Admin reset button for clearing demo data.
 
 **Current Limitations**
-- All data is mocked in `client/src/lib/mock-data.ts`.
-- Scores are simulated (not computed from real datasets).
+- Some pages still fall back to demo/local data when backend APIs or Supabase access are unavailable.
 - Postal search requires Google Geocoding API to be enabled.
 - The UI still reads sites and profiles from localStorage; the server persistence layer is now scaffolded separately.
-- Map overlays (choropleths, MRT/bus layers) are UI placeholders only.
+- The current overlay implementation is planning-area only; district and region aggregation are not implemented yet.
+
+**Current Delivery Status**
+- Done: Planning-area choropleth overlay on Google Maps.
+- Done: Overview mode and focus mode with radius-based filtering.
+- Done: Overlay legend with explicit score bands and live range display.
+- Done: Overlay visibility toggle independent from overlay type selection.
+- Done: Radius-filtered MRT stations, MRT exits, and bus stop layers.
+- Done: Zoom-gated MRT exits for map readability.
+- Done: Selected-site context card and improved right-panel empty states.
+- Done: Live site scoring flow on pin drop with clearer score hierarchy.
+- Done: Compare page PDF export.
+- Done: Explanation feedback capture on map, compare, and portfolio.
+- Done: Sticky map layout so the map stays visible while side panels scroll.
+- Pending / stretch: District and region overlay aggregation.
+- Pending / stretch: Full backend persistence replacing remaining localStorage fallbacks.
 
 **Routes**
 - `/` landing
@@ -216,12 +233,19 @@ curl -X POST http://127.0.0.1:5000/api/chatbot \
 **Planned Work (Next Steps)**
 - Implement real backend API (profiles, scoring, sites).
 - Connect the current UI flows to the persisted backend APIs instead of localStorage.
-- Build map overlays (planning areas, MRT/bus layers).
+- Add district / region overlay aggregation if required for the final demo.
 - Add real scoring pipeline from OneMap, SingStat, LTA, URA datasets.
 - Replace prototype AI explanations with rule-based or LLM-backed logic.
 - Add authentication, user accounts, and portfolio ownership.
 
 **Update Log**
+March 25, 2026
+- Added overview vs focus behavior on the map so nationwide planning-area overlays show before a site is selected.
+- Added choropleth visibility toggle, zoom-gated MRT exits, clearer overlay legend ranges, and stronger layer controls.
+- Improved the right-side map panel with selected-site context, clearer empty states, and better score hierarchy.
+- Added client-side comparison PDF export.
+- Added explanation feedback capture for map, portfolio, and compare insights.
+
 February 20, 2026
 - Replaced Leaflet/OneMap tiles with Google Maps (base map, click-to-drop pin, geocoding search, Places autocomplete).
 - Added localStorage persistence for profiles and sites with a shared hook.
