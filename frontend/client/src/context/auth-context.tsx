@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { useLocation } from "wouter";
-import { supabase } from "@/lib/supabaseClient";
+import { isSupabaseConfigured, supabase } from "@/lib/supabaseClient";
 
 type AuthContextValue = {
   user: User | null;
@@ -11,30 +11,67 @@ type AuthContextValue = {
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
+const allowDemoAuth = import.meta.env.DEV && import.meta.env.VITE_ALLOW_DEMO_AUTH !== "false";
+
+const demoUser = {
+  id: "demo-user",
+  email: "demo@smartlocate.local",
+  app_metadata: { provider: "demo", providers: ["demo"] },
+  user_metadata: { mode: "demo" },
+  aud: "authenticated",
+  created_at: new Date().toISOString(),
+} as User;
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState<User | null>(
+    isSupabaseConfigured && !allowDemoAuth ? null : demoUser,
+  );
+  const [loading, setLoading] = useState(isSupabaseConfigured && !allowDemoAuth);
   const [, setLocation] = useLocation();
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
-      setUser(data.session?.user ?? null);
+    if (!isSupabaseConfigured) {
+      setSession(null);
+      setUser(demoUser);
+      setLoading(false);
+      return;
+    }
+
+    supabase.auth.getSession().then(({ data }: any) => {
+      const nextSession = data.session ?? null;
+      setSession(nextSession);
+      setUser(nextSession?.user ?? (allowDemoAuth ? demoUser : null));
       setLoading(false);
     });
 
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, newSession) => {
+    const { data: listener } = supabase.auth.onAuthStateChange((_event: any, newSession: any) => {
       setSession(newSession);
-      setUser(newSession?.user ?? null);
+      setUser(newSession?.user ?? (allowDemoAuth ? demoUser : null));
     });
 
     return () => listener.subscription.unsubscribe();
   }, []);
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    if (!isSupabaseConfigured) {
+      setLocation("/");
+      return;
+    }
+
+    if (session) {
+      await supabase.auth.signOut();
+      setLocation("/login");
+      return;
+    }
+
+    if (allowDemoAuth) {
+      setSession(null);
+      setUser(demoUser);
+      setLocation("/");
+      return;
+    }
+
     setLocation("/login");
   };
 

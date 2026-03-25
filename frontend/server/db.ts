@@ -104,22 +104,20 @@ const connectionString =
 //   process.env.DATABASE_URL?.trim() ||
 //   buildSupabaseDatabaseUrl();
 
-if (!connectionString) {
-  throw new Error(
-    'No database URL found. Set SUPABASE_DATABASE_URL or DATABASE_URL, or keep VITE_SUPABASE_URL in .env and set SUPABASE_DB_PASSWORD (+ SUPABASE_DB_HOST when needed).',
-  );
-}
+export const hasDatabaseConnection = Boolean(connectionString);
 
-const connectionTimeoutMillis = Number(process.env.PG_CONNECTION_TIMEOUT_MS ?? '5000');
-const queryTimeoutMillis = Number(process.env.PG_QUERY_TIMEOUT_MS ?? '8000');
+const connectionTimeoutMillis = Number(process.env.PG_CONNECTION_TIMEOUT_MS ?? '15000');
+const queryTimeoutMillis = Number(process.env.PG_QUERY_TIMEOUT_MS ?? '20000');
 
-export const pool = new Pool({
-  connectionString,
-  connectionTimeoutMillis,
-  query_timeout: queryTimeoutMillis,
-});
+export const pool = connectionString
+  ? new Pool({
+      connectionString,
+      connectionTimeoutMillis,
+      query_timeout: queryTimeoutMillis,
+    })
+  : null;
 
 // Legacy pool setup (kept for rollback/debugging):
 // export const pool = new Pool({ connectionString });
 
-export const db = drizzle(pool, { schema });
+export const db = (pool ? drizzle(pool, { schema }) : null) as ReturnType<typeof drizzle>;
