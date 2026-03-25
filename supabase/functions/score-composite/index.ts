@@ -221,7 +221,7 @@ async function fetchCompetition(
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "Authorization": `Bearer ${ANON_KEY || SUPABASE_KEY}`,
+      "Authorization": `Bearer ${SUPABASE_KEY}`,
     },
     body: JSON.stringify({ lat, lng, radius_meters: radiusM, shop_category: shopCategory }),
   });
@@ -244,6 +244,17 @@ Deno.serve(async (req) => {
 
   if (!SUPABASE_URL || !SUPABASE_KEY) {
     return jsonResponse({ error: "Supabase credentials missing." }, 500);
+  }
+
+  const authHeader = req.headers.get("Authorization");
+  if (!authHeader?.startsWith("Bearer ")) {
+    return jsonResponse({ error: "Unauthorized." }, 401);
+  }
+  const token = authHeader.slice(7);
+  const authClient = createClient(SUPABASE_URL, SUPABASE_KEY);
+  const { data: { user }, error: authError } = await authClient.auth.getUser(token);
+  if (authError || !user) {
+    return jsonResponse({ error: "Unauthorized." }, 401);
   }
 
   try {

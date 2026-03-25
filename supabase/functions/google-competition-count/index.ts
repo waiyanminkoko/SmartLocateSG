@@ -504,6 +504,20 @@ Deno.serve(async (req) => {
     );
   }
 
+  const authHeader = req.headers.get("Authorization");
+  if (!authHeader?.startsWith("Bearer ")) {
+    return jsonResponse({ error: "Unauthorized." }, 401);
+  }
+  const token = authHeader.slice(7);
+  // Allow internal service-to-service calls using the service role key
+  if (token !== SUPABASE_KEY) {
+    const authClient = createClient(SUPABASE_URL, SUPABASE_KEY);
+    const { data: { user }, error: authError } = await authClient.auth.getUser(token);
+    if (authError || !user) {
+      return jsonResponse({ error: "Unauthorized." }, 401);
+    }
+  }
+
   try {
     const payload = (await req.json()) as {
       lat?: number;
