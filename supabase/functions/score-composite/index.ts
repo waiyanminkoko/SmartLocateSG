@@ -42,9 +42,16 @@ declare const Deno: {
 // @ts-ignore Deno remote imports are resolved at deploy/runtime for Edge Functions.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const SUPABASE_URL  = Deno.env.get("SUPABASE_URL") ?? "";
+const SUPABASE_URL  =
+  Deno.env.get("SUPABASE_URL") ??
+  Deno.env.get("VITE_SUPABASE_URL") ??
+  "";
 const SUPABASE_KEY  = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-const ANON_KEY      = Deno.env.get("ANON_KEY") ?? Deno.env.get("SUPABASE_ANON_KEY") ?? "";
+const ANON_KEY      =
+  Deno.env.get("ANON_KEY") ??
+  Deno.env.get("SUPABASE_ANON_KEY") ??
+  Deno.env.get("VITE_SUPABASE_ANON_KEY") ??
+  "";
 
 const DEFAULT_WEIGHTS = {
   demographic:   0.30,
@@ -222,6 +229,7 @@ async function fetchCompetition(
     headers: {
       "Content-Type": "application/json",
       "Authorization": `Bearer ${ANON_KEY || SUPABASE_KEY}`,
+      "apikey": ANON_KEY,
     },
     body: JSON.stringify({ lat, lng, radius_meters: radiusM, shop_category: shopCategory }),
   });

@@ -84,11 +84,10 @@ export default function MapPage() {
   const mapRef = useRef<any | null>(null);
   const markerRef = useRef<any | null>(null);
   const googleRef = useRef<any | null>(null);
-  const autocompleteRef = useRef<any | null>(null);
-  const searchInputRef = useRef<HTMLInputElement | null>(null);
   const hasActiveProfileRef = useRef(false);
   const [mapError, setMapError] = useState<string | null>(null);
   const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string | undefined;
+  const mapStyleId = import.meta.env.VITE_GOOGLE_MAPS_MAP_ID as string | undefined;
   const [selectedLatLng, setSelectedLatLng] = useState<{ lat: number; lng: number } | null>(null);
   const [selectedAddress, setSelectedAddress] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -311,12 +310,34 @@ export default function MapPage() {
   }, [scores]);
   */
 
+  const clearPin = () => {
+    if (!markerRef.current) return;
+
+    if (typeof markerRef.current.setMap === "function") {
+      markerRef.current.setMap(null);
+    } else if ("map" in markerRef.current) {
+      markerRef.current.map = null;
+    }
+
+    markerRef.current = null;
+  };
+
   const setPin = (latlng: any) => {
     const googleMaps = googleRef.current;
     if (!mapRef.current || !googleMaps) return;
-    if (markerRef.current) {
-      markerRef.current.setMap(null);
+
+    clearPin();
+
+    const canUseAdvancedMarker = Boolean(googleMaps.marker?.AdvancedMarkerElement && mapStyleId);
+    if (canUseAdvancedMarker) {
+      markerRef.current = new googleMaps.marker.AdvancedMarkerElement({
+        position: latlng,
+        map: mapRef.current,
+        title: "Selected site",
+      });
+      return;
     }
+
     markerRef.current = new googleMaps.maps.Marker({
       position: latlng,
       map: mapRef.current,
@@ -854,7 +875,7 @@ export default function MapPage() {
     const loader = new Loader({
       apiKey,
       version: "weekly",
-      libraries: ["places"],
+      libraries: ["places", "marker"],
     });
 
     loader
@@ -871,6 +892,7 @@ export default function MapPage() {
           mapTypeControl: false,
           streetViewControl: false,
           fullscreenControl: false,
+          mapId: mapStyleId,
         });
 
         map.addListener("click", (event: any) => {
@@ -891,57 +913,28 @@ export default function MapPage() {
         mapRef.current = map;
         setMapError(null);
         setMapReady(true);
-
-        if (searchInputRef.current && !autocompleteRef.current) {
-          const autocomplete = new googleMaps.maps.places.Autocomplete(searchInputRef.current, {
-            fields: ["geometry", "formatted_address", "name"],
-            componentRestrictions: { country: "sg" },
-          });
-          autocomplete.bindTo("bounds", map);
-          autocomplete.addListener("place_changed", () => {
-            const place = autocomplete.getPlace();
-            const location = place.geometry?.location;
-            if (!location) {
-              toast({
-                title: "Location not found",
-                description: "Select a location from the suggestions.",
-                variant: "destructive",
-              });
-              return;
-            }
-            const lat = location.lat();
-            const lng = location.lng();
-            map.setCenter(location);
-            map.setZoom(16);
-            setSelectedLatLng({ lat, lng });
-            const address = place.formatted_address || place.name || `Lat ${formatLatLng(lat, lng)}`;
-            setSelectedAddress(address);
-            setSearchQuery(address);
-            setPin(location);
-          });
-          autocompleteRef.current = autocomplete;
-        }
       })
-      .catch(() => {
-        setMapError("Unable to load Google Maps. Check your API key and billing status.");
+      .catch((error) => {
+        const details = error instanceof Error ? error.message : "";
+        const fullMessage = details
+          ? `Unable to load Google Maps. ${details}`
+          : "Unable to load Google Maps. Check API key restrictions, billing, and allowed HTTP referrers in Google Cloud.";
+
+        setMapError(fullMessage);
         toast({
           title: "Map failed to load",
-          description: "Verify your Google Maps API key and billing settings.",
+          description: "Verify Maps JavaScript API, billing, and key referrer/API restrictions.",
           variant: "destructive",
         });
       });
 
     return () => {
       cancelled = true;
-      if (markerRef.current) {
-        markerRef.current.setMap(null);
-        markerRef.current = null;
-      }
+      clearPin();
       mapRef.current = null;
-      autocompleteRef.current = null;
       setMapReady(false);
     };
-  }, [apiKey, toast]);
+  }, [apiKey, mapStyleId, toast]);
 
   return (
     <AppShell title="Map">
@@ -1172,13 +1165,11 @@ export default function MapPage() {
                       onChange={(e) => setSearchQuery(e.target.value)}
                       onKeyDown={(e) => {
                         if (e.key === "Enter") {
-                          if (autocompleteRef.current) return;
                           e.preventDefault();
                           runSearch();
                         }
                       }}
                       data-testid="input-search"
-                      ref={searchInputRef}
                     />
                   </div>
                   <Button
@@ -1209,10 +1200,7 @@ export default function MapPage() {
                 className="gap-2"
                 onClick={() => {
                   if (!mapRef.current) return;
-                  if (markerRef.current) {
-                    markerRef.current.setMap(null);
-                    markerRef.current = null;
-                  }
+                  clearPin();
                   mapRef.current.setCenter(defaultCenter);
                   mapRef.current.setZoom(12);
                   setSelectedLatLng(null);
