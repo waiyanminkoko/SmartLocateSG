@@ -24,6 +24,7 @@ export type CandidateSite = {
   profileId: string;
   lat?: number;
   lng?: number;
+  planningAreaId?: string;
 };
 
 export const mockProfiles: BusinessProfile[] = [

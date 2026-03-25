@@ -1,14 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
 import { Download, X } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
+import { jsPDF } from "jspdf";
 
 import { AppShell } from "@/components/app-shell";
+import { ExplanationFeedbackButtons } from "@/components/explanation-feedback-buttons";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ChartContainer, ChartLegend, ChartLegendContent, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { mockProfiles, mockSites, BusinessProfile, CandidateSite } from "@/lib/mock-data";
 import { openChatbot } from "@/lib/chatbot";
+import { buildCompareInsights } from "@/lib/explanation-insights";
 import { useToast } from "@/hooks/use-toast";
 import { useLocalStorageState } from "@/hooks/use-local-storage";
 
@@ -16,6 +19,7 @@ export default function Compare() {
   const { toast } = useToast();
   const [sites] = useLocalStorageState<CandidateSite[]>("smartlocate:sites", mockSites);
   const [profiles] = useLocalStorageState<BusinessProfile[]>("smartlocate:profiles", mockProfiles);
+  const [exporting, setExporting] = useState(false);
 
   const activeProfile = useMemo(() => profiles.find((p) => p.active), [profiles]);
   const activeProfileId = activeProfile?.id ?? "";
@@ -112,6 +116,190 @@ export default function Compare() {
     );
   }, [selectedSites]);
 
+  const exportTimestamp = useMemo(
+    () =>
+      new Date().toLocaleString("en-SG", {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+      }),
+    [],
+  );
+
+  const comparisonInsights = useMemo(
+    () => buildCompareInsights(selectedSites),
+    [selectedSites],
+  );
+
+  const exportComparisonPdf = async () => {
+    setExporting(true);
+
+    try {
+      const pdf = new jsPDF({
+        orientation: "portrait",
+        unit: "pt",
+        format: "a4",
+      });
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const margin = 40;
+      const contentWidth = pageWidth - margin * 2;
+      const colors = [
+        [15, 118, 110],
+        [14, 165, 233],
+        [245, 158, 11],
+      ] as const;
+
+      let y = margin;
+
+      const ensureSpace = (requiredHeight: number) => {
+        if (y + requiredHeight <= pageHeight - margin) {
+          return;
+        }
+        pdf.addPage();
+        y = margin;
+      };
+
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize(18);
+      pdf.text("SmartLocate SG Comparison Report", margin, y);
+      y += 24;
+
+      pdf.setFont("helvetica", "normal");
+      pdf.setFontSize(10);
+      pdf.text(`Profile: ${activeProfile?.name ?? "None selected"}`, margin, y);
+      y += 14;
+      pdf.text(`Prepared on: ${exportTimestamp}`, margin, y);
+      y += 20;
+
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize(12);
+      pdf.text("Selected sites", margin, y);
+      y += 16;
+
+      pdf.setFont("helvetica", "normal");
+      pdf.setFontSize(10);
+      selectedSites.forEach((site, index) => {
+        ensureSpace(18);
+        pdf.text(`${index + 1}. ${site.name} — ${site.address}`, margin, y);
+        y += 14;
+      });
+      y += 8;
+
+      ensureSpace(24 + dims.length * 18);
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize(12);
+      pdf.text("Comparison table", margin, y);
+      y += 18;
+
+      const metricColumnWidth = 140;
+      const siteColumnWidth = (contentWidth - metricColumnWidth) / Math.max(selectedSites.length, 1);
+
+      pdf.setFillColor(241, 245, 249);
+      pdf.rect(margin, y, contentWidth, 22, "F");
+      pdf.setTextColor(15, 23, 42);
+      pdf.setFontSize(10);
+      pdf.text("Metric", margin + 8, y + 14);
+      selectedSites.forEach((site, index) => {
+        pdf.text(site.name, margin + metricColumnWidth + siteColumnWidth * index + 8, y + 14, {
+          maxWidth: siteColumnWidth - 12,
+        });
+      });
+      y += 22;
+
+      pdf.setFont("helvetica", "normal");
+      dims.forEach((dimension, rowIndex) => {
+        ensureSpace(20);
+        if (rowIndex % 2 === 0) {
+          pdf.setFillColor(248, 250, 252);
+          pdf.rect(margin, y, contentWidth, 20, "F");
+        }
+
+        pdf.text(dimension.label, margin + 8, y + 13);
+        selectedSites.forEach((site, index) => {
+          const value = String((site as CandidateSite & Record<string, number>)[dimension.key]);
+          pdf.text(value, margin + metricColumnWidth + siteColumnWidth * index + 8, y + 13);
+        });
+        y += 20;
+      });
+
+      y += 18;
+      ensureSpace(180);
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize(12);
+      pdf.text("Grouped score chart", margin, y);
+      y += 18;
+
+      const chartLeft = margin + 110;
+      const chartWidth = contentWidth - 120;
+      const barGroupHeight = 22;
+      const barHeight = Math.max(5, Math.floor(16 / Math.max(selectedSites.length, 1)));
+
+      pdf.setFont("helvetica", "normal");
+      pdf.setFontSize(9);
+      dims.forEach((dimension) => {
+        ensureSpace(barGroupHeight + 10);
+        pdf.setTextColor(51, 65, 85);
+        pdf.text(dimension.label, margin, y + 12, { maxWidth: 100 });
+        pdf.setDrawColor(226, 232, 240);
+        pdf.line(chartLeft, y + 18, chartLeft + chartWidth, y + 18);
+
+        selectedSites.forEach((site, index) => {
+          const value = (site as CandidateSite & Record<string, number>)[dimension.key];
+          const barWidth = (Math.max(0, Math.min(100, value)) / 100) * chartWidth;
+          const [r, g, b] = colors[index % colors.length];
+          pdf.setFillColor(r, g, b);
+          pdf.rect(chartLeft, y + 2 + index * (barHeight + 1), barWidth, barHeight, "F");
+          pdf.setTextColor(r, g, b);
+          pdf.text(String(value), chartLeft + barWidth + 6, y + 10 + index * (barHeight + 1));
+        });
+
+        y += barGroupHeight;
+      });
+
+      y += 18;
+      ensureSpace(20 + comparisonInsights.length * 26);
+      pdf.setTextColor(15, 23, 42);
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize(12);
+      pdf.text("Comparison insights", margin, y);
+      y += 18;
+
+      pdf.setFont("helvetica", "normal");
+      pdf.setFontSize(10);
+      comparisonInsights.forEach((insight) => {
+        ensureSpace(26);
+        pdf.setFont("helvetica", "bold");
+        pdf.text(insight.criterion, margin, y);
+        y += 12;
+        pdf.setFont("helvetica", "normal");
+        pdf.text(insight.detail, margin, y, { maxWidth: contentWidth });
+        y += 16;
+      });
+
+      const timestamp = new Date()
+        .toISOString()
+        .replace(/[:]/g, "-")
+        .replace(/\..+/, "");
+      pdf.save(`smartlocate-compare-${timestamp}.pdf`);
+      toast({
+        title: "PDF exported",
+        description: "Comparison report downloaded.",
+      });
+    } catch (error) {
+      console.error("[compare][export-pdf]", error);
+      toast({
+        title: "Export failed",
+        description: "Could not generate the comparison PDF.",
+        variant: "destructive",
+      });
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const explainComparison = () => {
     if (selectedSites.length < 2) {
       toast({
@@ -150,11 +338,14 @@ export default function Compare() {
           <Button
             variant="secondary"
             className="gap-2"
-            onClick={() => toast({ title: "Export PDF (prototype)", description: "A PDF would download here." })}
+            onClick={() => {
+              void exportComparisonPdf();
+            }}
+            disabled={selectedSites.length < 2 || exporting}
             data-testid="button-export-pdf"
           >
             <Download className="h-4 w-4" aria-hidden="true" />
-            Export PDF
+            {exporting ? "Exporting..." : "Export PDF"}
           </Button>
         </div>
       }
@@ -167,6 +358,9 @@ export default function Compare() {
           </p>
           <p className="mt-1 text-xs text-muted-foreground" data-testid="text-compare-active-profile">
             Active profile: {activeProfile?.name ?? "None selected"}
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Prepared on: {exportTimestamp}
           </p>
         </div>
 
@@ -267,6 +461,28 @@ export default function Compare() {
                     ))}
                   </BarChart>
                 </ChartContainer>
+              </div>
+            </Card>
+
+            <Card className="border bg-card p-5 shadow-sm" data-testid="card-compare-insights">
+              <div className="text-sm font-semibold">Comparison insights</div>
+              <div className="mt-1 text-xs text-muted-foreground">
+                Short recommendations based on the currently selected sites.
+              </div>
+              <div className="mt-4 space-y-3">
+                {comparisonInsights.map((insight) => (
+                  <div key={insight.criterion} className="rounded-xl border bg-muted/20 p-3 text-sm">
+                    <div className="font-medium">{insight.criterion}</div>
+                    <div className="mt-1 text-xs text-muted-foreground">{insight.detail}</div>
+                    <div className="mt-3">
+                      <ExplanationFeedbackButtons
+                        page="compare"
+                        profileId={activeProfile?.id ?? null}
+                        criterion={insight.criterion}
+                      />
+                    </div>
+                  </div>
+                ))}
               </div>
             </Card>
 
