@@ -6,5 +6,7 @@ vite.config.ts.*
 *.tar.gz
 .env
 .env.*
+.github
+*.txt
 *.pyc
 __pychache__/

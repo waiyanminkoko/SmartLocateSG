@@ -7,13 +7,22 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ChartContainer, ChartLegend, ChartLegendContent, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
-import { mockSites, CandidateSite } from "@/lib/mock-data";
+import { mockProfiles, mockSites, BusinessProfile, CandidateSite } from "@/lib/mock-data";
+import { openChatbot } from "@/lib/chatbot";
 import { useToast } from "@/hooks/use-toast";
 import { useLocalStorageState } from "@/hooks/use-local-storage";
 
 export default function Compare() {
   const { toast } = useToast();
   const [sites] = useLocalStorageState<CandidateSite[]>("smartlocate:sites", mockSites);
+  const [profiles] = useLocalStorageState<BusinessProfile[]>("smartlocate:profiles", mockProfiles);
+
+  const activeProfile = useMemo(() => profiles.find((p) => p.active), [profiles]);
+  const activeProfileId = activeProfile?.id ?? "";
+  const profileSites = useMemo(
+    () => (activeProfileId ? sites.filter((s) => s.profileId === activeProfileId) : []),
+    [sites, activeProfileId],
+  );
 
   const [selected, setSelected] = useState<string[]>(() => {
     if (typeof window === "undefined") {
@@ -34,12 +43,27 @@ export default function Compare() {
   });
 
   useEffect(() => {
+    const allowedIds = new Set(profileSites.map((s) => s.id));
+    const defaultIds = profileSites.slice(0, 2).map((s) => s.id);
+
+    setSelected((prev) => {
+      const filtered = prev.filter((id) => allowedIds.has(id));
+      const next = filtered.length > 0 ? filtered : defaultIds;
+
+      if (next.length === prev.length && next.every((id, index) => id === prev[index])) {
+        return prev;
+      }
+      return next;
+    });
+  }, [profileSites]);
+
+  useEffect(() => {
     localStorage.setItem("compare:selected", JSON.stringify(selected));
   }, [selected]);
 
   const selectedSites = useMemo(
-    () => sites.filter((s) => selected.includes(s.id)).slice(0, 3),
-    [sites, selected],
+    () => profileSites.filter((s) => selected.includes(s.id)).slice(0, 3),
+    [profileSites, selected],
   );
 
   const toggle = (id: string) => {
@@ -88,19 +112,51 @@ export default function Compare() {
     );
   }, [selectedSites]);
 
+  const explainComparison = () => {
+    if (selectedSites.length < 2) {
+      toast({
+        title: "Select at least 2 sites",
+        description: "Choose two sites to get a meaningful comparison explanation.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    openChatbot({
+      context: {
+        page: "compare",
+        title: "Site comparison explanation",
+        sites: selectedSites.map((site) => ({
+          id: site.id,
+          name: site.name,
+          address: site.address,
+          composite: site.composite,
+          demographic: site.demographic,
+          accessibility: site.accessibility,
+          rental: site.rental,
+          competition: site.competition,
+        })),
+      },
+      starterPrompt:
+        "Compare these selected sites, identify the strongest option, and explain key trade-offs clearly.",
+    });
+  };
+
   return (
     <AppShell
       title="Compare"
       right={
-        <Button
-          variant="secondary"
-          className="gap-2"
-          onClick={() => toast({ title: "Export PDF (prototype)", description: "A PDF would download here." })}
-          data-testid="button-export-pdf"
-        >
-          <Download className="h-4 w-4" aria-hidden="true" />
-          Export PDF
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="secondary"
+            className="gap-2"
+            onClick={() => toast({ title: "Export PDF (prototype)", description: "A PDF would download here." })}
+            data-testid="button-export-pdf"
+          >
+            <Download className="h-4 w-4" aria-hidden="true" />
+            Export PDF
+          </Button>
+        </div>
       }
     >
       <div className="space-y-6">
@@ -109,12 +165,25 @@ export default function Compare() {
           <p className="mt-1 text-sm text-muted-foreground" data-testid="text-compare-subtitle">
             Compare 2–3 candidate sites side-by-side.
           </p>
+          <p className="mt-1 text-xs text-muted-foreground" data-testid="text-compare-active-profile">
+            Active profile: {activeProfile?.name ?? "None selected"}
+          </p>
         </div>
 
         <Card className="border bg-card p-5 shadow-sm">
           <div className="text-sm font-semibold" data-testid="text-compare-select-title">Select sites</div>
+          {!activeProfileId ? (
+            <div className="mt-3 rounded-xl border bg-muted/30 p-3 text-sm text-muted-foreground" data-testid="status-no-active-profile">
+              Select an active business profile in Profiles before comparing sites.
+            </div>
+          ) : null}
+          {activeProfileId && profileSites.length === 0 ? (
+            <div className="mt-3 rounded-xl border bg-muted/30 p-3 text-sm text-muted-foreground" data-testid="status-no-sites-for-profile">
+              No saved candidate sites for the active profile yet.
+            </div>
+          ) : null}
           <div className="mt-3 grid gap-2 md:grid-cols-3">
-            {sites.map((s) => (
+            {profileSites.map((s) => (
               <label
                 key={s.id}
                 className="flex cursor-pointer items-start gap-3 rounded-xl border bg-card p-3"
@@ -158,9 +227,21 @@ export default function Compare() {
         ) : (
           <div className="space-y-4">
             <Card className="border bg-card p-5 shadow-sm">
-              <div className="text-sm font-semibold" data-testid="text-compare-chart-title">Score comparison</div>
-              <div className="mt-1 text-xs text-muted-foreground" data-testid="text-compare-chart-subtitle">
-                Dimension scores across selected sites.
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div>
+                  <div className="text-sm font-semibold" data-testid="text-compare-chart-title">Score comparison</div>
+                  <div className="mt-1 text-xs text-muted-foreground" data-testid="text-compare-chart-subtitle">
+                    Dimension scores across selected sites.
+                  </div>
+                </div>
+                <Button
+                  variant="outline"
+                  className="gap-2"
+                  onClick={explainComparison}
+                  data-testid="button-explain-comparison"
+                >
+                  Explain Comparison
+                </Button>
               </div>
               <div className="mt-4">
                 <ChartContainer className="h-72" config={chartConfig}>
