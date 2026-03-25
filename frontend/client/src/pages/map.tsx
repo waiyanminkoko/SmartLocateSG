@@ -27,6 +27,7 @@ import { openChatbot } from "@/lib/chatbot";
 import { fetchJsonWithCache, writeApiCache } from "@/lib/api-cache";
 import { mockProfiles, type BusinessProfile, type CandidateSite } from "@/lib/mock-data";
 import { useAuth } from "@/context/auth-context";
+import { supabase } from "@/lib/supabaseClient";
 
 const PROFILES_CACHE_TTL_MS = 2 * 60 * 1000;
 const SITES_CACHE_TTL_MS = 60 * 1000;
@@ -49,31 +50,15 @@ const presets: Record<string, Weights> = {
 
 const defaultCenter = { lat: 1.3521, lng: 103.8198 };
 
-
-function seededValue(lat: number, lng: number, salt: number) {
-  const x = Math.sin((lat + salt) * 12.9898 + (lng + salt) * 78.233) * 43758.5453;
-  return x - Math.floor(x);
-}
-
-function scoreFromSeed(seed: number, min = 55, max = 95) {
-  return Math.round(min + seed * (max - min));
-}
-
-function computeScores(lat: number, lng: number, weights: Weights) {
-  const demographic = scoreFromSeed(seededValue(lat, lng, 0.3));
-  const accessibility = scoreFromSeed(seededValue(lat, lng, 0.6));
-  const rental = scoreFromSeed(seededValue(lat, lng, 0.9));
-  const competition = scoreFromSeed(seededValue(lat, lng, 1.2));
-  const w = normalize(weights);
-  const composite = Math.round(
-    (demographic * w.demographic +
-      accessibility * w.accessibility +
-      rental * w.rental +
-      competition * w.competition) /
-      100,
-  );
-  return { demographic, accessibility, rental, competition, composite };
-}
+const SECTOR_TO_SHOP_CATEGORY: Record<string, string> = {
+  "Professional services": "retail",
+  "Education & training":  "retail",
+  "Health & wellness":     "gym",
+  "Beauty & personal care":"beauty",
+  "Entertainment & leisure":"retail",
+  "Supermarket/Retail":    "retail",
+  "Showrooms":             "retail",
+};
 
 function clamp100(v: number) {
   return Math.max(0, Math.min(100, v));
@@ -133,18 +118,62 @@ export default function MapPage() {
   const [scoreNotes, setScoreNotes] = useState("");
 
   const [weights, setWeights] = useState<Weights>(() => presets.Normal);
+  const [scores, setScores] = useState<{
+    demographic: number;
+    accessibility: number;
+    rental: number;
+    competition: number;
+    composite: number;
+  } | null>(null);
+  const [scoring, setScoring] = useState(false);
 
   const activeProfile = useMemo(
     () => profiles.find((p) => p.id === activeProfileId),
     [profiles, activeProfileId],
   );
 
-  const scores = useMemo(() => {
-    const loc = selectedLatLng ?? defaultCenter;
-    return computeScores(loc.lat, loc.lng, weights);
-  }, [selectedLatLng, weights]);
+  const composite = scores?.composite ?? 0;
 
-  const composite = scores.composite;
+  const fetchScores = async (
+    lat: number,
+    lng: number,
+    profile: typeof activeProfile,
+    w: Weights,
+  ) => {
+    if (!profile) return;
+    setScoring(true);
+    try {
+      const shopCategory = SECTOR_TO_SHOP_CATEGORY[profile.sector] ?? "retail";
+      const { data, error } = await supabase.functions.invoke("score-composite", {
+        body: {
+          lat,
+          lng,
+          age_groups:   profile.ageGroups,
+          income_bands: profile.incomeBands,
+          shop_category: shopCategory,
+          weights: {
+            demographic:   w.demographic   / 100,
+            accessibility: w.accessibility / 100,
+            rental:        w.rental        / 100,
+            competition:   w.competition   / 100,
+          },
+        },
+      });
+      if (error) throw error;
+      setScores({
+        demographic:   data.demographic.score,
+        accessibility: data.accessibility.score,
+        rental:        data.rental.score,
+        competition:   data.competition.score,
+        composite:     data.composite,
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Scoring failed";
+      toast({ title: "Scoring error", description: message, variant: "destructive" });
+    } finally {
+      setScoring(false);
+    }
+  };
 
   const fallbackExplanationItems = useMemo(() => {
     const demographicDetail =
@@ -440,6 +469,14 @@ export default function MapPage() {
       toast({
         title: "Drop a pin first",
         description: "Click on the map to pick a location.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!scores) {
+      toast({
+        title: "Scores not ready",
+        description: "Wait for scoring to complete before saving.",
         variant: "destructive",
       });
       return;
@@ -747,6 +784,11 @@ export default function MapPage() {
   }, [profiles]);
 
   useEffect(() => {
+    if (!selectedLatLng || !activeProfile) return;
+    fetchScores(selectedLatLng.lat, selectedLatLng.lng, activeProfile, weights);
+  }, [selectedLatLng, activeProfileId]);
+
+  useEffect(() => {
     if (typeof window === "undefined") return;
     const raw = localStorage.getItem("smartlocate:mapSelection");
     if (!raw) return;
@@ -990,7 +1032,11 @@ export default function MapPage() {
                       </Button>
                       <Button
                         onClick={() => {
-                          setWeights((prev) => normalize(prev));
+                          const normalised = normalize(weights);
+                          setWeights(normalised);
+                          if (selectedLatLng && activeProfile) {
+                            fetchScores(selectedLatLng.lat, selectedLatLng.lng, activeProfile, normalised);
+                          }
                           toast({ title: "Weights applied", description: "Scores updated." });
                         }}
                         data-testid="button-apply-weights"
@@ -1209,7 +1255,9 @@ export default function MapPage() {
                   Selected: {selectedLocationText}
                 </div>
               </div>
-              <div className="text-2xl font-semibold tracking-tight" data-testid="text-composite-score">{composite}</div>
+              <div className="text-2xl font-semibold tracking-tight" data-testid="text-composite-score">
+                {scoring ? "…" : scores ? composite : "—"}
+              </div>
             </div>
 
             <div className="rounded-xl border bg-muted/30 p-3 text-xs text-muted-foreground" data-testid="text-data-freshness">
@@ -1218,17 +1266,19 @@ export default function MapPage() {
 
             <div className="grid gap-3">
               {([
-                ["Demographic Match", scores.demographic],
-                ["Accessibility", scores.accessibility],
-                ["Rental Pressure", scores.rental],
-                ["Competition Density", scores.competition],
+                ["Demographic Match", scores?.demographic ?? 0],
+                ["Accessibility",     scores?.accessibility ?? 0],
+                ["Rental Pressure",   scores?.rental ?? 0],
+                ["Competition Density", scores?.competition ?? 0],
               ] as const).map(([label, value]) => (
                 <div key={label} className="space-y-1" data-testid={`row-dimension-${label}`}>
                   <div className="flex items-center justify-between text-xs text-muted-foreground">
                     <span data-testid={`text-dimension-label-${label}`}>{label}</span>
-                    <span data-testid={`text-dimension-value-${label}`}>{value}</span>
+                    <span data-testid={`text-dimension-value-${label}`}>
+                      {scoring ? "…" : scores ? value : "—"}
+                    </span>
                   </div>
-                  <Progress value={value} data-testid={`progress-${label}`} />
+                  <Progress value={scoring ? undefined : value} data-testid={`progress-${label}`} />
                 </div>
               ))}
             </div>
