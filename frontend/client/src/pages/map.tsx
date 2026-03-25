@@ -86,6 +86,7 @@ export default function MapPage() {
   const googleRef = useRef<any | null>(null);
   const autocompleteRef = useRef<any | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const hasActiveProfileRef = useRef(false);
   const [mapError, setMapError] = useState<string | null>(null);
   const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string | undefined;
   const [selectedLatLng, setSelectedLatLng] = useState<{ lat: number; lng: number } | null>(null);
@@ -100,6 +101,7 @@ export default function MapPage() {
     siteAddress?: string;
   } | null>(null);
   const [mapReady, setMapReady] = useState(false);
+  const [geocodingAvailable, setGeocodingAvailable] = useState(true);
 
   const [profiles, setProfiles] = useLocalStorageState<BusinessProfile[]>("smartlocate:profiles", []);
   const [, setSites] = useLocalStorageState<CandidateSite[]>("smartlocate:sites", []);
@@ -131,6 +133,10 @@ export default function MapPage() {
     () => profiles.find((p) => p.id === activeProfileId),
     [profiles, activeProfileId],
   );
+
+  useEffect(() => {
+    hasActiveProfileRef.current = Boolean(activeProfile);
+  }, [activeProfile]);
 
   const composite = scores?.composite ?? 0;
 
@@ -176,6 +182,10 @@ export default function MapPage() {
   };
 
   const fallbackExplanationItems = useMemo(() => {
+    if (!scores) {
+      return [];
+    }
+
     const demographicDetail =
       scores.demographic >= 75
         ? "Strong overlap with target age groups and mid-income households."
@@ -375,7 +385,7 @@ export default function MapPage() {
 
   const reverseGeocode = (lat: number, lng: number) => {
     const googleMaps = googleRef.current;
-    if (!googleMaps?.maps) {
+    if (!googleMaps?.maps || !geocodingAvailable) {
       setSelectedAddress(`Lat ${formatLatLng(lat, lng)}`);
       return;
     }
@@ -390,6 +400,16 @@ export default function MapPage() {
           return;
         }
       }
+
+      if (status === "REQUEST_DENIED") {
+        setGeocodingAvailable(false);
+        toast({
+          title: "Geocoding API not enabled",
+          description: "Address lookup is disabled for this API key. Scoring still works using latitude/longitude.",
+          variant: "destructive",
+        });
+      }
+
       setSelectedAddress(`Lat ${formatLatLng(lat, lng)}`);
     });
   };
@@ -430,6 +450,9 @@ export default function MapPage() {
         `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${apiKey}`,
       );
       const data = await res.json();
+      if (data.status === "REQUEST_DENIED") {
+        throw new Error(data.error_message ?? "Geocoding API is not enabled for this API key.");
+      }
       if (data.status !== "OK" || !data.results?.length) {
         throw new Error("No results");
       }
@@ -445,10 +468,11 @@ export default function MapPage() {
         title: "Location found",
         description: result.formatted_address ?? address,
       });
-    } catch {
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Check the postal code and try again.";
       toast({
-        title: "Address not found",
-        description: "Check the postal code and try again.",
+        title: "Address lookup failed",
+        description: message,
         variant: "destructive",
       });
     } finally {
@@ -858,7 +882,9 @@ export default function MapPage() {
           setPin(event.latLng);
           toast({
             title: "Pin dropped (prototype)",
-            description: "Scoring updated for the selected location.",
+            description: hasActiveProfileRef.current
+              ? "Scoring updated for the selected location."
+              : "Select an active profile to generate scores for this location.",
           });
         });
 
@@ -1217,7 +1243,9 @@ export default function MapPage() {
                   setPin(center);
                   toast({
                     title: "Pin dropped (prototype)",
-                    description: "Scoring updated for the selected location.",
+                    description: activeProfile
+                      ? "Scoring updated for the selected location."
+                      : "Select an active profile to generate scores for this location.",
                   });
                 }}
                 data-testid="button-drop-pin"
@@ -1343,7 +1371,7 @@ export default function MapPage() {
                         lat: selectedLatLng?.lat,
                         lng: selectedLatLng?.lng,
                       },
-                      scores,
+                      scores: scores ?? undefined,
                     },
                     starterPrompt:
                       "Explain this location score and suggest two concrete actions to improve the weakest dimensions.",
