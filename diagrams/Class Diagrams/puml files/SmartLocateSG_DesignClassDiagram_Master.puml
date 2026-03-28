@@ -44,15 +44,54 @@ package "Boundary" {
 }
 
 package "Control" {
-  class AuthController <<control>>
-  class ProfileController <<control>>
-  class MapController <<control>>
-  class ScoringController <<control>>
-  class PortfolioController <<control>>
-  class CompareController <<control>>
-  class AdminController <<control>>
-  class ExplanationController <<control>>
-  class ChatbotController <<control>>
+  class AuthController <<control>> {
+    +register(request: HttpRequest): HttpResponse
+    +login(request: HttpRequest): HttpResponse
+    +logout(request: HttpRequest): HttpResponse
+    +refreshSession(request: HttpRequest): HttpResponse
+    +getCurrentUser(request: HttpRequest): HttpResponse
+  }
+  class ProfileController <<control>> {
+    +listProfiles(userId: string): List<BusinessProfile>
+    +createProfile(input: CreateBusinessProfileInput): BusinessProfile
+    +updateProfile(profileId: string, userId: string, input: UpdateBusinessProfileInput): BusinessProfile
+    +deleteProfile(profileId: string, userId: string): void
+    +setActiveProfile(profileId: string, userId: string): void
+  }
+  class MapController <<control>> {
+    +getPlanningAreaOverlays(metric: OverlayMetric): GeoJsonFeatureCollection
+    +getPointLayer(layer: LayerKey, focus: RadiusFilter): PointLayerCollection
+    +scoreSite(input: SiteScoreRequest): SiteScore
+  }
+  class ScoringController <<control>> {
+    +scoreSiteLocation(input: SiteScoreRequest): SiteScore
+    +computeComposite(scores: Map<String, number>, weights: WeightConfig): number
+    +generateScoreBreakdown(siteScore: SiteScore): Map<String, number>
+  }
+  class PortfolioController <<control>> {
+    +listSites(userId: string): List<CandidateSite>
+    +saveSite(input: SaveCandidateSiteInput): CandidateSite
+    +deleteSite(siteId: string, userId: string): void
+    +updateSiteNotes(siteId: string, userId: string, notes: string): CandidateSite
+  }
+  class CompareController <<control>> {
+    +selectSites(siteIds: List<string>): ComparisonSet
+    +compareSites(siteIds: List<string>): ComparisonResult
+    +exportPdf(siteIds: List<string>): Binary
+  }
+  class AdminController <<control>> {
+    +viewDataStatus(): DataStatus
+    +runRefresh(): void
+    +manageConfig(config: WeightConfig): WeightConfig
+  }
+  class ExplanationController <<control>> {
+    +explainScore(payload: ExplainScoreRequest): Explanation
+    +saveFeedback(payload: ExplanationFeedbackInput): ExplanationFeedback
+  }
+  class ChatbotController <<control>> {
+    +generateResponse(payload: ChatbotRequest): ChatbotReply
+    +buildContext(payload: ChatbotRequest): string
+  }
 
   class ScoreEngine <<control>> {
     +computeComposite(): number
@@ -142,24 +181,58 @@ package "Entity" {
 }
 
 package "Persistence" {
-  class UserRepository <<repository>>
-  class ProfileRepository <<repository>>
-  class SiteRepository <<repository>>
-  class ScoreRepository <<repository>>
-  class PlanningAreaRepository <<repository>>
-  class DemographicsRepository <<repository>>
-  class FeedbackRepository <<repository>>
+  class UserRepository <<repository>> {
+    +getUser(id: string): User
+    +getUserByUsername(username: string): User
+    +createUser(user: InsertUser): User
+  }
+  class ProfileRepository <<repository>> {
+    +getBusinessProfiles(userId: string): List<BusinessProfile>
+    +createBusinessProfile(input: CreateBusinessProfileInput): BusinessProfile
+    +updateBusinessProfile(profileId: string, userId: string, input: UpdateBusinessProfileInput): BusinessProfile
+    +deleteBusinessProfile(profileId: string, userId: string): void
+    +setActiveBusinessProfile(profileId: string, userId: string): void
+  }
+  class SiteRepository <<repository>> {
+    +getCandidateSites(userId: string): List<CandidateSite>
+    +saveCandidateSite(input: SaveCandidateSiteInput): CandidateSite
+    +deleteCandidateSite(siteId: string, userId: string): void
+  }
+  class ScoreRepository <<repository>> {
+    +createSiteScore(input: SiteScore): SiteScore
+    +getSiteScoreById(siteScoreId: string): SiteScore
+    +deleteSiteScore(siteScoreId: string): void
+  }
+  class PlanningAreaRepository <<repository>> {
+    +getPlanningAreaOverlayCollection(metric: OverlayMetric): GeoJsonFeatureCollection
+    +getPointLayerCollection(layer: LayerKey, focus: RadiusFilter): PointLayerCollection
+  }
+  class DemographicsRepository <<repository>> {
+    +getAreaDemographics(planningAreaId: string): AreaDemographics
+  }
+  class FeedbackRepository <<repository>> {
+    +saveExplanationFeedback(input: ExplanationFeedbackInput): ExplanationFeedback
+    +listExplanationFeedback(profileId: string, page: string): List<ExplanationFeedback>
+  }
 }
 
 package "Container Classes" {
   class ProfileCatalog <<container>> {
     +profiles: List<BusinessProfile>
+    +getActiveProfile(): BusinessProfile
+    +findProfileById(profileId: string): BusinessProfile
   }
   class CandidateSiteCollection <<container>> {
     +sites: List<CandidateSite>
+    +addSite(site: CandidateSite): void
+    +removeSite(siteId: string): void
+    +sortByComposite(): List<CandidateSite>
   }
   class ComparisonSet <<container>> {
     +selected: List<CandidateSite>
+    +setSelectedSites(siteIds: List<string>): void
+    +getSelectedSites(): List<CandidateSite>
+    +clear(): void
   }
 }
 
