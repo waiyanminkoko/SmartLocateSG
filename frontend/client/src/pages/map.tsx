@@ -12,7 +12,6 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 import { AppShell } from "@/components/app-shell";
-import { ExplanationFeedbackButtons } from "@/components/explanation-feedback-buttons";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -23,7 +22,7 @@ import { Progress } from "@/components/ui/progress";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { useLocalStorageState } from "@/hooks/use-local-storage";
-import { openChatbot } from "@/lib/chatbot";
+import { openChatbot, setLatestChatbotPayload, type OpenChatbotPayload } from "@/lib/chatbot";
 import { fetchJsonWithCache, writeApiCache } from "@/lib/api-cache";
 import { demoOverlayCollection, demoPointLayers } from "@/lib/demo-map-data";
 import { mockProfiles, type BusinessProfile, type CandidateSite } from "@/lib/mock-data";
@@ -702,6 +701,94 @@ export default function MapPage() {
   ].filter(Boolean) as string[];
 
   const isAnySidePanelOpen = isBreakdownSheetOpen || isNotesSheetOpen;
+
+  const mapChatbotPayload = useMemo<OpenChatbotPayload>(
+    () => ({
+      context: {
+        page: "map",
+        title: "Map score explanation",
+        profile: activeProfile
+          ? {
+              id: activeProfile.id,
+              name: activeProfile.name,
+              sector: activeProfile.sector,
+              priceBand: activeProfile.priceBand,
+              ageGroups: activeProfile.ageGroups,
+              incomeBands: activeProfile.incomeBands,
+              operatingModel: activeProfile.operatingModel,
+            }
+          : undefined,
+        location: {
+          address: hasSelectedSite ? selectedLocationText : undefined,
+          lat: selectedLatLng?.lat,
+          lng: selectedLatLng?.lng,
+          planningArea: resolvedPlanningAreaName ?? undefined,
+        },
+        scores: {
+          composite: composite ?? undefined,
+          demographic: scores.demographic ?? undefined,
+          accessibility: scores.accessibility ?? undefined,
+          rental: scores.rental ?? undefined,
+          competition: scores.competition ?? undefined,
+        },
+        hiddenContext: {
+          mapMode,
+          overlay,
+          availableOverlays,
+          modeSummary,
+          focusRadiusMeters,
+          mapZoom,
+          weights,
+          scenario,
+          layerVisibility,
+          selectedArea,
+          siteScore,
+          selectedSiteChipMeta,
+          scoreNotes,
+          explanationSummary,
+          detailedBreakdownText,
+          displayedExplanationItems,
+          quickRecommendations,
+        },
+      },
+      starterPrompt:
+        "Explain this location score and suggest two concrete actions to improve the weakest dimensions.",
+    }),
+    [
+      activeProfile,
+      availableOverlays,
+      composite,
+      detailedBreakdownText,
+      displayedExplanationItems,
+      explanationSummary,
+      focusRadiusMeters,
+      hasSelectedSite,
+      layerVisibility,
+      mapMode,
+      mapZoom,
+      modeSummary,
+      overlay,
+      quickRecommendations,
+      resolvedPlanningAreaName,
+      scenario,
+      scoreNotes,
+      scores.accessibility,
+      scores.competition,
+      scores.demographic,
+      scores.rental,
+      selectedArea,
+      selectedLatLng?.lat,
+      selectedLatLng?.lng,
+      selectedLocationText,
+      selectedSiteChipMeta,
+      siteScore,
+      weights,
+    ],
+  );
+
+  useEffect(() => {
+    setLatestChatbotPayload(mapChatbotPayload);
+  }, [mapChatbotPayload]);
 
   /*
   Legacy static explanation source (pre `/api/explain-score` integration)
@@ -2874,14 +2961,6 @@ export default function MapPage() {
                       <div>
                         <span className="font-medium">{item.label}:</span> {item.detail}
                       </div>
-                      <div className="mt-2">
-                        <ExplanationFeedbackButtons
-                          page="map"
-                          profileId={activeProfile?.id ?? null}
-                          siteId={siteScore?.planningArea?.planningAreaId ?? selectedArea?.planningAreaId ?? null}
-                          criterion={item.label}
-                        />
-                      </div>
                     </div>
                   ))}
                 </div>
@@ -2900,33 +2979,7 @@ export default function MapPage() {
                 disabled={!hasSelectedSite || scoringLoading}
                 onClick={() => {
                   void requestExplanation();
-                  openChatbot({
-                    context: {
-                      page: "map",
-                      title: "Map score explanation",
-                      profile: activeProfile
-                        ? {
-                            name: activeProfile.name,
-                            sector: activeProfile.sector,
-                            priceBand: activeProfile.priceBand,
-                          }
-                        : undefined,
-                      location: {
-                        address: hasSelectedSite ? selectedLocationText : undefined,
-                        lat: selectedLatLng?.lat,
-                        lng: selectedLatLng?.lng,
-                      },
-                      scores: {
-                        composite: composite ?? undefined,
-                        demographic: scores.demographic ?? undefined,
-                        accessibility: scores.accessibility ?? undefined,
-                        rental: scores.rental ?? undefined,
-                        competition: scores.competition ?? undefined,
-                      },
-                    },
-                    starterPrompt:
-                      "Explain this location score and suggest two concrete actions to improve the weakest dimensions.",
-                  });
+                  openChatbot(mapChatbotPayload);
                 }}
               >
                 <span className="inline-flex items-center gap-2">

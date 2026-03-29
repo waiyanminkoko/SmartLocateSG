@@ -11,6 +11,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { useIsMobile } from "@/hooks/use-mobile";
 import {
   CHATBOT_OPEN_EVENT,
+  getLatestChatbotPayload,
+  type ChatbotPage,
   type ChatbotContext,
   type OpenChatbotPayload,
 } from "@/lib/chatbot";
@@ -38,6 +40,45 @@ function buildDefaultPrompt(context: ChatbotContext) {
     return "Please explain this saved site's scores and suggest whether to keep, improve, or deprioritize it.";
   }
   return "Please compare the selected sites and recommend the strongest option with trade-offs.";
+}
+
+function routeToChatbotPage(route: string): ChatbotPage | null {
+  if (route === "/map") {
+    return "map";
+  }
+  if (route === "/portfolio") {
+    return "portfolio";
+  }
+  if (route === "/compare") {
+    return "compare";
+  }
+  return null;
+}
+
+function hasMeaningfulContext(context: ChatbotContext | null): boolean {
+  if (!context) {
+    return false;
+  }
+
+  const hasLocation = Boolean(
+    context.location?.address ||
+      context.location?.planningArea ||
+      typeof context.location?.lat === "number" ||
+      typeof context.location?.lng === "number",
+  );
+  const hasScores = Boolean(
+    typeof context.scores?.composite === "number" ||
+      typeof context.scores?.demographic === "number" ||
+      typeof context.scores?.accessibility === "number" ||
+      typeof context.scores?.rental === "number" ||
+      typeof context.scores?.competition === "number",
+  );
+  const hasSites = Boolean((context.sites?.length ?? 0) > 0);
+  const hasHiddenContext = Boolean(
+    context.hiddenContext && Object.keys(context.hiddenContext).length > 0,
+  );
+
+  return hasLocation || hasScores || hasSites || hasHiddenContext;
 }
 
 export function ChatbotHost() {
@@ -121,7 +162,30 @@ export function ChatbotHost() {
       return;
     }
 
-    await handleSend(input, context);
+    const routePage = routeToChatbotPage(location);
+    const latestPayload = routePage ? getLatestChatbotPayload(routePage) : null;
+    const resolvedContext = hasMeaningfulContext(latestPayload?.context ?? null)
+      ? latestPayload?.context ?? null
+      : context;
+
+    if (!hasMeaningfulContext(resolvedContext)) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: createId(),
+          role: "assistant",
+          content:
+            "I need the latest page score data before I can analyze. Please use the page's Explain button once or select a site first.",
+        },
+      ]);
+      return;
+    }
+
+    if (resolvedContext) {
+      setContext(resolvedContext);
+    }
+
+    await handleSend(input, resolvedContext);
   };
 
   async function handleSend(prompt: string, activeContext: ChatbotContext | null) {
@@ -140,6 +204,12 @@ export function ChatbotHost() {
     setIsSending(true);
 
     try {
+      const routePage = routeToChatbotPage(location);
+      const latestPayload = routePage ? getLatestChatbotPayload(routePage) : null;
+      const contextForRequest = hasMeaningfulContext(latestPayload?.context ?? null)
+        ? latestPayload?.context ?? null
+        : activeContext;
+
       const recentHistory = [...messages, userMessage].slice(-8).map((msg) => ({
         role: msg.role,
         content: msg.content,
@@ -152,7 +222,7 @@ export function ChatbotHost() {
         },
         body: JSON.stringify({
           message: userMessage.content,
-          pageContext: activeContext,
+          pageContext: contextForRequest,
           history: recentHistory,
         }),
       });
@@ -198,11 +268,15 @@ export function ChatbotHost() {
           aria-label="Open score chatbot"
           className="chatbot-fab"
           onClick={() => {
-            const fallbackContext: ChatbotContext = context ?? {
-              page: location === "/map" ? "map" : location === "/portfolio" ? "portfolio" : "compare",
+            const routePage = routeToChatbotPage(location);
+            const latestPayload = routePage ? getLatestChatbotPayload(routePage) : null;
+            const preferredContext = latestPayload?.context ?? context;
+            const fallbackContext: ChatbotContext = preferredContext ?? {
+              page: routePage ?? "map",
             };
+
             setContext(fallbackContext);
-            setInput(buildDefaultPrompt(fallbackContext));
+            setInput(latestPayload?.starterPrompt ?? buildDefaultPrompt(fallbackContext));
             setIsOpen(true);
           }}
           data-testid="button-chatbot-fab"

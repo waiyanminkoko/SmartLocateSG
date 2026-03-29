@@ -125,6 +125,66 @@ type UpdateBusinessProfileInput = {
   operatingModel: string;
 };
 
+type ChatbotPageContextInput = {
+  page?: string;
+  profile?: {
+    sector?: string;
+  };
+  location?: {
+    address?: string;
+    planningArea?: string;
+  };
+  hiddenContext?: Record<string, unknown>;
+};
+
+type ChatbotPublicKnowledgeInput = {
+  message: string;
+  pageContext?: ChatbotPageContextInput;
+  maxAreas?: number;
+};
+
+type ChatbotPublicKnowledge = {
+  matchedPlanningAreas: Array<{
+    id: string;
+    areaName: string;
+    regionName: string | null;
+  }>;
+  latestAreaDemographics: Array<{
+    areaName: string;
+    effectiveYear: number;
+    populationTotal: number | null;
+    ageDistribution: unknown;
+    incomeDistribution: unknown;
+    householdSize: unknown;
+    householdStructure: unknown;
+    economicStatus: unknown;
+  }>;
+  latestEconomicStatus: Array<{
+    areaName: string;
+    year: number;
+    employed: number;
+    inactive: number;
+    unemployed: number;
+  }>;
+  latestHouseholdIncome: Array<{
+    areaName: string;
+    year: number;
+    total: number;
+    sgd8000Over: number;
+    sgd10000Over: number;
+    noWorkingPerson: number;
+  }>;
+  competitionCategoryCounts: Array<{
+    category: string;
+    count: number;
+  }>;
+  transitNetwork: {
+    busStops: number | null;
+    mrtExits: number | null;
+  };
+  retrievalNotes: string[];
+};
+
 // modify the interface with any CRUD methods
 // you might need
 
@@ -147,6 +207,9 @@ export interface IStorage {
   
   // Demographics / Scoring
   getAreaDemographics(planningAreaId: string): Promise<any>;
+
+  // Chatbot retrieval augmentation
+  getChatbotPublicKnowledge(input: ChatbotPublicKnowledgeInput): Promise<ChatbotPublicKnowledge>;
 }
 
 export class MemStorage implements IStorage {
@@ -293,6 +356,23 @@ export class MemStorage implements IStorage {
   async getAreaDemographics(planningAreaId: string): Promise<any> {
     return null;
   }
+
+  async getChatbotPublicKnowledge(_input: ChatbotPublicKnowledgeInput): Promise<ChatbotPublicKnowledge> {
+    return {
+      matchedPlanningAreas: [],
+      latestAreaDemographics: [],
+      latestEconomicStatus: [],
+      latestHouseholdIncome: [],
+      competitionCategoryCounts: [],
+      transitNetwork: {
+        busStops: null,
+        mrtExits: null,
+      },
+      retrievalNotes: [
+        "Running in in-memory storage mode. Public Supabase retrieval is unavailable.",
+      ],
+    };
+  }
 }
 
 function parseNumeric(value: string | number | null): number | null {
@@ -343,6 +423,29 @@ function toStringArray(value: unknown): string[] {
   }
 
   return value.filter((entry): entry is string => typeof entry === "string");
+}
+
+function isObjectRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function getNestedString(
+  source: Record<string, unknown> | undefined,
+  ...path: string[]
+): string | undefined {
+  if (!source) {
+    return undefined;
+  }
+
+  let cursor: unknown = source;
+  for (const segment of path) {
+    if (!isObjectRecord(cursor) || !(segment in cursor)) {
+      return undefined;
+    }
+    cursor = cursor[segment];
+  }
+
+  return typeof cursor === "string" && cursor.trim().length > 0 ? cursor.trim() : undefined;
 }
 
 function toBusinessProfileRecord(row: typeof businessProfiles.$inferSelect): BusinessProfileRecord {
@@ -812,6 +915,248 @@ export class DatabaseStorage implements IStorage {
         throw deleteScoreError;
       }
     }
+  }
+
+  async getChatbotPublicKnowledge(input: ChatbotPublicKnowledgeInput): Promise<ChatbotPublicKnowledge> {
+    const emptyResult: ChatbotPublicKnowledge = {
+      matchedPlanningAreas: [],
+      latestAreaDemographics: [],
+      latestEconomicStatus: [],
+      latestHouseholdIncome: [],
+      competitionCategoryCounts: [],
+      transitNetwork: {
+        busStops: null,
+        mrtExits: null,
+      },
+      retrievalNotes: [],
+    };
+
+    if (!this.supabase) {
+      return {
+        ...emptyResult,
+        retrievalNotes: [
+          "Supabase client is not configured. Public database retrieval was skipped.",
+        ],
+      };
+    }
+
+    const supabase = this.supabase;
+    const maxAreas = Math.max(1, Math.min(input.maxAreas ?? 3, 8));
+    const question = input.message.toLowerCase();
+
+    const { data: planningAreaRows, error: planningAreaError } = await supabase
+      .from("planning_areas")
+      .select("id, area_name, region_name")
+      .limit(200);
+
+    if (planningAreaError) {
+      return {
+        ...emptyResult,
+        retrievalNotes: [
+          "Failed to retrieve planning areas from Supabase.",
+        ],
+      };
+    }
+
+    const planningAreas = (planningAreaRows ?? [])
+      .map((row) => ({
+        id: String((row as { id?: unknown }).id ?? ""),
+        areaName: String((row as { area_name?: unknown }).area_name ?? ""),
+        regionName:
+          (row as { region_name?: unknown }).region_name === null
+            ? null
+            : String((row as { region_name?: unknown }).region_name ?? ""),
+      }))
+      .filter((row) => row.id.length > 0 && row.areaName.length > 0);
+
+    const hiddenContext = isObjectRecord(input.pageContext?.hiddenContext)
+      ? input.pageContext?.hiddenContext
+      : undefined;
+
+    const explicitAreaHints = [
+      input.pageContext?.location?.planningArea,
+      getNestedString(hiddenContext, "selectedArea", "planningAreaName"),
+      getNestedString(hiddenContext, "siteScore", "planningArea", "planningAreaName"),
+      input.pageContext?.location?.address,
+    ]
+      .filter((value): value is string => Boolean(value && value.trim().length > 0))
+      .map((value) => value.toLowerCase());
+
+    const matchedPlanningAreas = planningAreas
+      .filter((area) => {
+        const areaName = area.areaName.toLowerCase();
+        const regionName = (area.regionName ?? "").toLowerCase();
+        if (question.includes(areaName) || question.includes(regionName)) {
+          return true;
+        }
+
+        return explicitAreaHints.some(
+          (hint) => hint.includes(areaName) || (regionName && hint.includes(regionName)),
+        );
+      })
+      .slice(0, maxAreas);
+
+    const areaFallback = matchedPlanningAreas.length > 0 ? matchedPlanningAreas : planningAreas.slice(0, maxAreas);
+    const areaIds = areaFallback.map((area) => area.id);
+    const areaNames = areaFallback.map((area) => area.areaName);
+    const areaNameById = new Map(areaFallback.map((area) => [area.id, area.areaName]));
+
+    if (areaIds.length > 0) {
+      const { data: demographicRows, error: demographicError } = await supabase
+        .from("area_demographics")
+        .select(
+          "planning_area_id, effective_year, population_total, age_distribution_json, income_distribution_json, household_size_json, household_structure_json, economic_status_json",
+        )
+        .in("planning_area_id", areaIds)
+        .order("effective_year", { ascending: false })
+        .limit(200);
+
+      if (!demographicError) {
+        const latestByArea = new Map<string, Record<string, unknown>>();
+        for (const row of (demographicRows ?? []) as Record<string, unknown>[]) {
+          const planningAreaId = String(row.planning_area_id ?? "");
+          if (!planningAreaId || latestByArea.has(planningAreaId)) {
+            continue;
+          }
+          latestByArea.set(planningAreaId, row);
+        }
+
+        emptyResult.latestAreaDemographics = Array.from(latestByArea.entries()).map(([planningAreaId, row]) => ({
+          areaName: areaNameById.get(planningAreaId) ?? planningAreaId,
+          effectiveYear: Number(row.effective_year ?? 0),
+          populationTotal:
+            row.population_total === null || row.population_total === undefined
+              ? null
+              : Number(row.population_total),
+          ageDistribution: row.age_distribution_json ?? null,
+          incomeDistribution: row.income_distribution_json ?? null,
+          householdSize: row.household_size_json ?? null,
+          householdStructure: row.household_structure_json ?? null,
+          economicStatus: row.economic_status_json ?? null,
+        }));
+      } else {
+        emptyResult.retrievalNotes.push("Failed to retrieve area_demographics rows.");
+      }
+    }
+
+    if (areaNames.length > 0) {
+      const { data: economicRows, error: economicError } = await supabase
+        .from("onemap_economic_status")
+        .select("planning_area, year, employed, inactive, unemployed")
+        .in("planning_area", areaNames)
+        .order("year", { ascending: false })
+        .limit(200);
+
+      if (!economicError) {
+        const latestByArea = new Map<string, Record<string, unknown>>();
+        for (const row of (economicRows ?? []) as Record<string, unknown>[]) {
+          const areaName = String(row.planning_area ?? "");
+          if (!areaName || latestByArea.has(areaName)) {
+            continue;
+          }
+          latestByArea.set(areaName, row);
+        }
+
+        emptyResult.latestEconomicStatus = Array.from(latestByArea.values()).map((row) => ({
+          areaName: String(row.planning_area ?? ""),
+          year: Number(row.year ?? 0),
+          employed: Number(row.employed ?? 0),
+          inactive: Number(row.inactive ?? 0),
+          unemployed: Number(row.unemployed ?? 0),
+        }));
+      } else {
+        emptyResult.retrievalNotes.push("Failed to retrieve onemap_economic_status rows.");
+      }
+
+      const { data: incomeRows, error: incomeError } = await supabase
+        .from("onemap_household_income")
+        .select("planning_area, year, total, sgd_8000_over, sgd_10000_over, no_working_person")
+        .in("planning_area", areaNames)
+        .order("year", { ascending: false })
+        .limit(200);
+
+      if (!incomeError) {
+        const latestByArea = new Map<string, Record<string, unknown>>();
+        for (const row of (incomeRows ?? []) as Record<string, unknown>[]) {
+          const areaName = String(row.planning_area ?? "");
+          if (!areaName || latestByArea.has(areaName)) {
+            continue;
+          }
+          latestByArea.set(areaName, row);
+        }
+
+        emptyResult.latestHouseholdIncome = Array.from(latestByArea.values()).map((row) => ({
+          areaName: String(row.planning_area ?? ""),
+          year: Number(row.year ?? 0),
+          total: Number(row.total ?? 0),
+          sgd8000Over: Number(row.sgd_8000_over ?? 0),
+          sgd10000Over: Number(row.sgd_10000_over ?? 0),
+          noWorkingPerson: Number(row.no_working_person ?? 0),
+        }));
+      } else {
+        emptyResult.retrievalNotes.push("Failed to retrieve onemap_household_income rows.");
+      }
+    }
+
+    const sectorHint = input.pageContext?.profile?.sector?.toLowerCase() ?? "";
+    const shouldFetchCompetition =
+      question.includes("compet") ||
+      question.includes("shop") ||
+      question.includes("store") ||
+      sectorHint.length > 0;
+
+    if (shouldFetchCompetition) {
+      const { data: categoryRows, error: categoryError } = await supabase
+        .from("google_places")
+        .select("shop_category")
+        .limit(5000);
+
+      if (!categoryError) {
+        const counts = new Map<string, number>();
+        for (const row of (categoryRows ?? []) as Array<{ shop_category?: string | null }>) {
+          const category = (row.shop_category ?? "unknown").trim();
+          if (!category) {
+            continue;
+          }
+          counts.set(category, (counts.get(category) ?? 0) + 1);
+        }
+
+        const sorted = Array.from(counts.entries())
+          .sort((a, b) => b[1] - a[1])
+          .map(([category, count]) => ({ category, count }));
+
+        if (sectorHint.length > 0) {
+          const sectorMatches = sorted.filter((entry) =>
+            entry.category.toLowerCase().includes(sectorHint),
+          );
+          emptyResult.competitionCategoryCounts =
+            sectorMatches.length > 0 ? sectorMatches.slice(0, 8) : sorted.slice(0, 8);
+        } else {
+          emptyResult.competitionCategoryCounts = sorted.slice(0, 8);
+        }
+      } else {
+        emptyResult.retrievalNotes.push("Failed to retrieve google_places competition rows.");
+      }
+    }
+
+    const [{ count: busStopCount }, { count: mrtExitCount }] = await Promise.all([
+      supabase.from("datagov_bus_stops").select("id", { head: true, count: "exact" }),
+      supabase.from("datagov_mrt_exits").select("id", { head: true, count: "exact" }),
+    ]);
+
+    emptyResult.transitNetwork = {
+      busStops: busStopCount ?? null,
+      mrtExits: mrtExitCount ?? null,
+    };
+    emptyResult.matchedPlanningAreas = areaFallback;
+
+    if (matchedPlanningAreas.length === 0) {
+      emptyResult.retrievalNotes.push(
+        "No explicit planning area match found in the question. Returned baseline planning area context.",
+      );
+    }
+
+    return emptyResult;
   }
 
   private async ensureUserExists(userId: string): Promise<void> {

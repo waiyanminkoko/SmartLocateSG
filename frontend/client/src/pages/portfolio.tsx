@@ -3,7 +3,6 @@ import { useLocation } from "wouter";
 import { FileText, Map as MapIcon, Trash2 } from "lucide-react";
 
 import { AppShell } from "@/components/app-shell";
-import { ExplanationFeedbackButtons } from "@/components/explanation-feedback-buttons";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -12,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { mockProfiles, CandidateSite } from "@/lib/mock-data";
-import { openChatbot } from "@/lib/chatbot";
+import { openChatbot, setLatestChatbotPayload, type OpenChatbotPayload } from "@/lib/chatbot";
 import { buildPortfolioInsights } from "@/lib/explanation-insights";
 import { fetchJsonWithCache, invalidateApiCache } from "@/lib/api-cache";
 import { useToast } from "@/hooks/use-toast";
@@ -167,6 +166,11 @@ export default function Portfolio() {
     );
   }, [sites, query, profileFilter]);
 
+  const activeProfile = useMemo(
+    () => profiles.find((profile) => profile.active) ?? null,
+    [profiles],
+  );
+
   const focusSite = useMemo(
     () =>
       filtered.find((site) => selectedIds.includes(site.id)) ??
@@ -255,13 +259,95 @@ export default function Portfolio() {
     setLocation("/compare");
   };
 
-  const explainWithChatbot = () => {
+  const portfolioChatbotPayload = useMemo<OpenChatbotPayload | null>(() => {
     const target =
       filtered.find((site) => selectedIds.includes(site.id)) ??
       filtered[0] ??
       sites[0];
 
     if (!target) {
+      return null;
+    }
+
+    return {
+      context: {
+        page: "portfolio",
+        title: "Portfolio site explanation",
+        profile: activeProfile
+          ? {
+              id: activeProfile.id,
+              name: activeProfile.name,
+              sector: activeProfile.sector,
+              priceBand: activeProfile.priceBand,
+              ageGroups: activeProfile.ageGroups,
+              incomeBands: activeProfile.incomeBands,
+              operatingModel: activeProfile.operatingModel,
+            }
+          : undefined,
+        sites: [
+          {
+            id: target.id,
+            profileId: target.profileId,
+            name: target.name,
+            address: target.address,
+            lat: target.lat,
+            lng: target.lng,
+            composite: target.composite,
+            demographic: target.demographic,
+            accessibility: target.accessibility,
+            rental: target.rental,
+            competition: target.competition,
+            notes: target.notes,
+          },
+        ],
+        hiddenContext: {
+          profileFilter,
+          query,
+          selectedIds,
+          totalSites: sites.length,
+          filteredSitesCount: filtered.length,
+          activeProfileId: activeProfile?.id ?? null,
+          focusSite,
+          filteredSites: filtered.map((site) => ({
+            id: site.id,
+            profileId: site.profileId,
+            name: site.name,
+            address: site.address,
+            lat: site.lat,
+            lng: site.lng,
+            composite: site.composite,
+            demographic: site.demographic,
+            accessibility: site.accessibility,
+            rental: site.rental,
+            competition: site.competition,
+            notes: site.notes,
+          })),
+          portfolioInsights,
+        },
+      },
+      starterPrompt:
+        "Explain this saved site's score breakdown and suggest whether I should keep, improve, or deprioritize it.",
+    };
+  }, [
+    activeProfile,
+    filtered,
+    focusSite,
+    portfolioInsights,
+    profileFilter,
+    query,
+    selectedIds,
+    sites,
+  ]);
+
+  useEffect(() => {
+    if (!portfolioChatbotPayload) {
+      return;
+    }
+    setLatestChatbotPayload(portfolioChatbotPayload);
+  }, [portfolioChatbotPayload]);
+
+  const explainWithChatbot = () => {
+    if (!portfolioChatbotPayload) {
       toast({
         title: "No site to explain",
         description: "Save a site from the map first.",
@@ -270,26 +356,7 @@ export default function Portfolio() {
       return;
     }
 
-    openChatbot({
-      context: {
-        page: "portfolio",
-        title: "Portfolio site explanation",
-        sites: [
-          {
-            id: target.id,
-            name: target.name,
-            address: target.address,
-            composite: target.composite,
-            demographic: target.demographic,
-            accessibility: target.accessibility,
-            rental: target.rental,
-            competition: target.competition,
-          },
-        ],
-      },
-      starterPrompt:
-        "Explain this saved site's score breakdown and suggest whether I should keep, improve, or deprioritize it.",
-    });
+    openChatbot(portfolioChatbotPayload);
   };
 
   return (
@@ -338,21 +405,13 @@ export default function Portfolio() {
           <Card className="border bg-card p-5 shadow-sm" data-testid="card-portfolio-insights">
             <div className="text-sm font-semibold">Saved site insights</div>
             <div className="mt-1 text-xs text-muted-foreground">
-              Feedback is tied to the currently focused saved site: {focusSite.name}.
+              Insights for the currently focused saved site: {focusSite.name}.
             </div>
             <div className="mt-4 space-y-3">
               {portfolioInsights.map((insight) => (
                 <div key={insight.criterion} className="rounded-xl border bg-muted/20 p-3 text-sm">
                   <div className="font-medium">{insight.criterion}</div>
                   <div className="mt-1 text-xs text-muted-foreground">{insight.detail}</div>
-                  <div className="mt-3">
-                    <ExplanationFeedbackButtons
-                      page="portfolio"
-                      profileId={focusSite.profileId}
-                      siteId={focusSite.id}
-                      criterion={insight.criterion}
-                    />
-                  </div>
                 </div>
               ))}
             </div>

@@ -7,7 +7,6 @@ import {
   getPointLayerCollection,
   scoreSiteLocation,
 } from "./map-data";
-import { saveExplanationFeedback } from "./explanation-feedback";
 
 type ExplanationItem = {
   label: string;
@@ -119,9 +118,13 @@ const chatbotSchema = z.object({
       title: z.string().optional(),
       profile: z
         .object({
+          id: z.string().optional(),
           name: z.string().optional(),
           sector: z.string().optional(),
           priceBand: z.string().optional(),
+          ageGroups: z.array(z.string()).optional(),
+          incomeBands: z.array(z.string()).optional(),
+          operatingModel: z.string().optional(),
         })
         .optional(),
       location: z
@@ -129,6 +132,7 @@ const chatbotSchema = z.object({
           address: z.string().optional(),
           lat: z.number().optional(),
           lng: z.number().optional(),
+          planningArea: z.string().optional(),
         })
         .optional(),
       scores: z
@@ -143,19 +147,25 @@ const chatbotSchema = z.object({
       sites: z
         .array(
           z.object({
+            profileId: z.string().optional(),
             id: z.string().optional(),
             name: z.string(),
+            lat: z.number().optional(),
+            lng: z.number().optional(),
             address: z.string().optional(),
             composite: z.number().optional(),
             demographic: z.number().optional(),
             accessibility: z.number().optional(),
             rental: z.number().optional(),
+            notes: z.string().optional(),
             competition: z.number().optional(),
           }),
         )
-        .max(3)
+        .max(10)
         .optional(),
+      hiddenContext: z.record(z.unknown()).optional(),
     })
+    .passthrough()
     .optional(),
   history: z
     .array(
@@ -168,13 +178,306 @@ const chatbotSchema = z.object({
     .optional(),
 });
 
-const explanationFeedbackSchema = z.object({
-  page: z.enum(["map", "portfolio", "compare"]),
-  profileId: z.string().min(1).optional().nullable(),
-  siteId: z.string().min(1).optional().nullable(),
-  criterion: z.string().min(1).max(200),
-  vote: z.enum(["helpful", "not_helpful"]),
-});
+type ChatbotPayload = z.infer<typeof chatbotSchema>;
+type ChatPageScores = {
+  composite?: number;
+  demographic?: number;
+  accessibility?: number;
+  rental?: number;
+  competition?: number;
+};
+type ChatPageLocation = {
+  address?: string;
+  planningArea?: string;
+  lat?: number;
+  lng?: number;
+};
+
+const CHATBOT_CONTEXT_MAX_STRING_LENGTH = 1200;
+const CHATBOT_CONTEXT_MAX_ARRAY_LENGTH = 25;
+const CHATBOT_CONTEXT_MAX_DEPTH = 5;
+
+function clampContextValue(value: unknown, depth = 0): unknown {
+  if (depth > CHATBOT_CONTEXT_MAX_DEPTH) {
+    return "[truncated-depth]";
+  }
+
+  if (typeof value === "string") {
+    if (value.length <= CHATBOT_CONTEXT_MAX_STRING_LENGTH) {
+      return value;
+    }
+    return `${value.slice(0, CHATBOT_CONTEXT_MAX_STRING_LENGTH)}...[truncated]`;
+  }
+
+  if (Array.isArray(value)) {
+    return value
+      .slice(0, CHATBOT_CONTEXT_MAX_ARRAY_LENGTH)
+      .map((entry) => clampContextValue(entry, depth + 1));
+  }
+
+  if (value && typeof value === "object") {
+    const entries = Object.entries(value as Record<string, unknown>);
+    const clampedEntries = entries.slice(0, CHATBOT_CONTEXT_MAX_ARRAY_LENGTH).map(([key, entry]) => [
+      key,
+      clampContextValue(entry, depth + 1),
+    ]);
+    return Object.fromEntries(clampedEntries);
+  }
+
+  return value;
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" ? (value as Record<string, unknown>) : null;
+}
+
+function toOptionalString(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
+}
+
+function toOptionalNumber(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function hasObjectEntries(value: unknown): boolean {
+  return Boolean(value && typeof value === "object" && Object.keys(value as Record<string, unknown>).length > 0);
+}
+
+function hasAnyScore(scores: ChatPageScores | undefined): boolean {
+  if (!scores) {
+    return false;
+  }
+
+  return (
+    toOptionalNumber(scores.composite) !== undefined ||
+    toOptionalNumber(scores.demographic) !== undefined ||
+    toOptionalNumber(scores.accessibility) !== undefined ||
+    toOptionalNumber(scores.rental) !== undefined ||
+    toOptionalNumber(scores.competition) !== undefined
+  );
+}
+
+function hasLocationEvidence(location: ChatPageLocation | undefined): boolean {
+  if (!location) {
+    return false;
+  }
+
+  return Boolean(
+    toOptionalString(location.address) ||
+      toOptionalString(location.planningArea) ||
+      toOptionalNumber(location.lat) !== undefined ||
+      toOptionalNumber(location.lng) !== undefined,
+  );
+}
+
+function buildVisiblePageContext(payload: ChatbotPayload) {
+  if (!payload.pageContext) {
+    return null;
+  }
+
+  if (payload.pageContext.page === "portfolio") {
+    const hidden = asRecord(payload.pageContext.hiddenContext);
+    const focusSite = asRecord(hidden?.focusSite);
+    const filteredSites = Array.isArray(hidden?.filteredSites)
+      ? (hidden?.filteredSites as unknown[]).slice(0, 10)
+      : undefined;
+
+    return {
+      portfolioSnapshot: {
+        activeProfileId: toOptionalString(hidden?.activeProfileId) ?? payload.pageContext.profile?.id,
+        selectedIdsCount: Array.isArray(hidden?.selectedIds) ? hidden.selectedIds.length : undefined,
+        totalSites: toOptionalNumber(hidden?.totalSites) ?? payload.pageContext.sites?.length,
+        filteredSitesCount: toOptionalNumber(hidden?.filteredSitesCount),
+        profileFilter: toOptionalString(hidden?.profileFilter),
+        query: toOptionalString(hidden?.query),
+      },
+      focusedSite: {
+        id: toOptionalString(focusSite?.id),
+        name: toOptionalString(focusSite?.name),
+        address: toOptionalString(focusSite?.address),
+        planningArea: toOptionalString(focusSite?.planningArea),
+        composite: toOptionalNumber(focusSite?.composite),
+        demographic: toOptionalNumber(focusSite?.demographic),
+        accessibility: toOptionalNumber(focusSite?.accessibility),
+        rental: toOptionalNumber(focusSite?.rental),
+        competition: toOptionalNumber(focusSite?.competition),
+      },
+      filteredSiteScores: filteredSites?.map((site) => {
+        const s = asRecord(site);
+        return {
+          id: toOptionalString(s?.id),
+          name: toOptionalString(s?.name),
+          address: toOptionalString(s?.address),
+          composite: toOptionalNumber(s?.composite),
+          demographic: toOptionalNumber(s?.demographic),
+          accessibility: toOptionalNumber(s?.accessibility),
+          rental: toOptionalNumber(s?.rental),
+          competition: toOptionalNumber(s?.competition),
+        };
+      }),
+      portfolioInsights: hidden?.portfolioInsights,
+    };
+  }
+
+  if (payload.pageContext.page === "compare") {
+    const hidden = asRecord(payload.pageContext.hiddenContext);
+    const profileSites = Array.isArray(hidden?.profileSites)
+      ? (hidden?.profileSites as unknown[]).slice(0, 10)
+      : undefined;
+
+    return {
+      comparisonSnapshot: {
+        activeProfileId: toOptionalString(hidden?.activeProfileId) ?? payload.pageContext.profile?.id,
+        selectedSitesCount: toOptionalNumber(hidden?.selectedSitesCount),
+        totalProfileSites: toOptionalNumber(hidden?.totalProfileSites),
+        selectedSiteIds: Array.isArray(hidden?.selectedSiteIds)
+          ? (hidden.selectedSiteIds as unknown[])
+              .map((id) => toOptionalString(id))
+              .filter((id): id is string => Boolean(id))
+          : undefined,
+      },
+      comparedSites: profileSites?.map((site) => {
+        const s = asRecord(site);
+        return {
+          id: toOptionalString(s?.id),
+          name: toOptionalString(s?.name),
+          address: toOptionalString(s?.address),
+          composite: toOptionalNumber(s?.composite),
+          demographic: toOptionalNumber(s?.demographic),
+          accessibility: toOptionalNumber(s?.accessibility),
+          rental: toOptionalNumber(s?.rental),
+          competition: toOptionalNumber(s?.competition),
+        };
+      }),
+      chartData: hidden?.chartData,
+      comparisonInsights: hidden?.comparisonInsights,
+    };
+  }
+
+  const hidden = asRecord(payload.pageContext.hiddenContext);
+  const selectedArea = asRecord(hidden?.selectedArea);
+  const siteScore = asRecord(hidden?.siteScore);
+  const planningArea = asRecord(siteScore?.planningArea);
+  const breakdown = asRecord(siteScore?.breakdownDetails);
+
+  return {
+    selectedSite: {
+      address: payload.pageContext.location?.address,
+      planningArea:
+        payload.pageContext.location?.planningArea ??
+        toOptionalString(selectedArea?.planningAreaName) ??
+        toOptionalString(planningArea?.planningAreaName),
+      radiusMeters:
+        toOptionalNumber(hidden?.focusRadiusMeters) ??
+        toOptionalNumber(breakdown?.analysisRadiusMeters),
+      radiusLabel: toOptionalString((hidden?.selectedSiteChipMeta as string[] | undefined)?.[1]),
+    },
+    planningAreaDetails: {
+      populationTotal:
+        toOptionalNumber(selectedArea?.populationTotal) ?? toOptionalNumber(planningArea?.populationTotal),
+      effectiveYear:
+        toOptionalNumber(selectedArea?.effectiveYear) ?? toOptionalNumber(planningArea?.effectiveYear),
+      busStopCount:
+        toOptionalNumber(selectedArea?.busStopCount) ?? toOptionalNumber(planningArea?.busStopCount),
+      mrtExitCount:
+        toOptionalNumber(selectedArea?.mrtExitCount) ?? toOptionalNumber(planningArea?.mrtExitCount),
+      avgUnitPricePsf:
+        toOptionalNumber(selectedArea?.avgUnitPricePsf) ?? toOptionalNumber(planningArea?.avgUnitPricePsf),
+      retailTransactionCount:
+        toOptionalNumber(selectedArea?.retailTransactionCount) ??
+        toOptionalNumber(planningArea?.retailTransactionCount),
+      areaComposite: toOptionalNumber(planningArea?.compositeScore),
+      areaDemographics: toOptionalNumber(planningArea?.demographicScore),
+      areaAccessibility: toOptionalNumber(planningArea?.accessibilityScore),
+      areaVacancy: toOptionalNumber(planningArea?.vacancyScore),
+    },
+    scoreBreakdown: {
+      composite: payload.pageContext.scores?.composite,
+      demographic: payload.pageContext.scores?.demographic,
+      accessibility: payload.pageContext.scores?.accessibility,
+      rental: payload.pageContext.scores?.rental,
+      competition: payload.pageContext.scores?.competition,
+    },
+    liveSiteInputs: {
+      busStopsWithinRadius: toOptionalNumber(breakdown?.busStopsWithinRadius),
+      mrtExitsWithinRadius: toOptionalNumber(breakdown?.mrtExitsWithinRadius),
+      competitionCountWithinRadius: toOptionalNumber(breakdown?.competitionCountWithinRadius),
+      competitionCategory: toOptionalString(breakdown?.competitionCategory),
+      populationTotal: toOptionalNumber(breakdown?.populationTotal),
+      avgUnitPricePsf: toOptionalNumber(breakdown?.avgUnitPricePsf),
+      retailTransactionCount: toOptionalNumber(breakdown?.retailTransactionCount),
+    },
+    dataAvailability: {
+      hasScores: hasAnyScore(payload.pageContext.scores),
+      hasLocation: hasLocationEvidence(payload.pageContext.location),
+      hasPlanningAreaSignals: Boolean(selectedArea || planningArea),
+      hasSiteInputs: Boolean(breakdown),
+    },
+  };
+}
+
+function buildPageDataAvailability(payload: ChatbotPayload, visiblePageContext: unknown) {
+  const hidden = asRecord(payload.pageContext?.hiddenContext);
+
+  return {
+    page: payload.pageContext?.page,
+    hasScores: hasAnyScore(payload.pageContext?.scores),
+    hasLocation: hasLocationEvidence(payload.pageContext?.location),
+    hasSites: Boolean((payload.pageContext?.sites?.length ?? 0) > 0),
+    hasHiddenContext: hasObjectEntries(hidden),
+    hasVisiblePageContext: hasObjectEntries(visiblePageContext),
+  };
+}
+
+async function buildChatRetrievalContext(payload: ChatbotPayload) {
+  const normalizedMessage = payload.message.trim();
+  if (!normalizedMessage) {
+    return null;
+  }
+
+  const lowerMessage = normalizedMessage.toLowerCase();
+  const asksOffPageContext =
+    lowerMessage.includes("other") ||
+    lowerMessage.includes("another") ||
+    lowerMessage.includes("outside") ||
+    lowerMessage.includes("not shown") ||
+    lowerMessage.includes("not selected") ||
+    lowerMessage.includes("not chosen") ||
+    lowerMessage.includes("different site") ||
+    lowerMessage.includes("different region") ||
+    lowerMessage.includes("other region") ||
+    lowerMessage.includes("planning area") ||
+    lowerMessage.includes("all") ||
+    lowerMessage.includes("across") ||
+    lowerMessage.includes("nationwide") ||
+    lowerMessage.includes("singapore") ||
+    lowerMessage.includes("sg");
+
+  if (!asksOffPageContext) {
+    return null;
+  }
+
+  const asksBroadly =
+    lowerMessage.includes("all") ||
+    lowerMessage.includes("across") ||
+    lowerMessage.includes("nationwide") ||
+    lowerMessage.includes("singapore") ||
+    lowerMessage.includes("sg");
+
+  try {
+    return await storage.getChatbotPublicKnowledge({
+      message: payload.message,
+      pageContext: payload.pageContext,
+      maxAreas: asksBroadly ? 6 : 4,
+    });
+  } catch {
+    return {
+      retrievalNotes: [
+        "Supabase retrieval attempt failed for this query. Falling back to available page context.",
+      ],
+    };
+  }
+}
 
 function fallbackExplanation(scores: {
   demographic: number;
@@ -376,16 +679,23 @@ async function generateGeminiExplanation(input: z.infer<typeof explainScoreSchem
 function buildChatSystemPrompt(page?: "map" | "portfolio" | "compare") {
   const base = [
     "You are SmartLocateSG AI score assistant.",
+    "Ground answers in Singapore context (MRT, bus, planning areas, local demographics/rental proxies).",
     "Respond in concise, business-friendly language for SME users.",
-    "Use only the given context data and avoid hallucinations.",
+    "First answer the user's exact question directly in 1-2 sentences.",
+    "Then explain the reasoning with concrete evidence from provided context and retrieved data.",
+    "Use page context and retrieved database context only.",
+    "Never mention hiddenContext or internal payload fields.",
+    "Avoid hallucinations and unsupported claims.",
+    "If score/location/site values are present in visiblePageContext, treat them as loaded evidence and do not claim data is unavailable.",
     "Explain trade-offs across score dimensions and suggest practical improvements.",
-    "If data is missing, acknowledge it briefly and continue with what is available.",
-    "Keep response under 180 words unless the user explicitly asks for more detail.",
+    "If data is missing or retrieval returned no records, acknowledge it briefly and continue with what is available.",
+    "Keep response under 220 words unless the user explicitly asks for more detail.",
     "Format the response in clean Markdown with short headings and bullet points when useful.",
   ];
 
   if (page === "map") {
     base.push("Focus on single-site interpretation and improvement actions.");
+    base.push("When map context is present, prioritize visiblePageContext values over nationwide aggregates.");
   } else if (page === "portfolio") {
     base.push("Focus on saved-site evaluation and prioritization guidance.");
   } else if (page === "compare") {
@@ -395,15 +705,20 @@ function buildChatSystemPrompt(page?: "map" | "portfolio" | "compare") {
   return base.join(" ");
 }
 
-function buildChatContextText(payload: z.infer<typeof chatbotSchema>) {
+function buildChatContextText(payload: ChatbotPayload, retrievalContext: unknown) {
+  const visiblePageContext = buildVisiblePageContext(payload);
+
   return JSON.stringify({
-    pageContext: payload.pageContext,
+    pageContext: clampContextValue(payload.pageContext),
+    visiblePageContext: clampContextValue(visiblePageContext),
+    pageDataAvailability: buildPageDataAvailability(payload, visiblePageContext),
     message: payload.message,
-    history: payload.history ?? [],
+    history: clampContextValue(payload.history ?? []),
+    retrievedDatabaseContext: clampContextValue(retrievalContext),
   });
 }
 
-async function generateGeminiChatResponse(payload: z.infer<typeof chatbotSchema>) {
+async function generateGeminiChatResponse(payload: ChatbotPayload) {
   const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_GEMINI_API_KEY;
   if (!apiKey) {
     return {
@@ -419,13 +734,14 @@ async function generateGeminiChatResponse(payload: z.infer<typeof chatbotSchema>
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
+    const retrievalContext = await buildChatRetrievalContext(payload);
     const body = {
       system_instruction: {
         parts: [{ text: buildChatSystemPrompt(payload.pageContext?.page) }],
       },
       contents: [
         {
-          parts: [{ text: buildChatContextText(payload) }],
+          parts: [{ text: buildChatContextText(payload, retrievalContext) }],
         },
       ],
       generationConfig: {
@@ -706,21 +1022,6 @@ export async function registerRoutes(
         message:
           "I could not reach the AI service. For now, compare the weakest score dimensions first, then prioritize actions that improve those values.",
       });
-    }
-  });
-
-  app.post("/api/explanation-feedback", async (req, res) => {
-    try {
-      const payload = explanationFeedbackSchema.parse(req.body);
-      const saved = await saveExplanationFeedback(payload);
-      res.status(201).json(saved);
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: error.flatten() });
-      }
-
-      console.error("[api/explanation-feedback][POST]", error);
-      res.status(500).json({ error: "Failed to save explanation feedback." });
     }
   });
 

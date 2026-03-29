@@ -4,13 +4,12 @@ import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { jsPDF } from "jspdf";
 
 import { AppShell } from "@/components/app-shell";
-import { ExplanationFeedbackButtons } from "@/components/explanation-feedback-buttons";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ChartContainer, ChartLegend, ChartLegendContent, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { mockProfiles, mockSites, BusinessProfile, CandidateSite } from "@/lib/mock-data";
-import { openChatbot } from "@/lib/chatbot";
+import { openChatbot, setLatestChatbotPayload, type OpenChatbotPayload } from "@/lib/chatbot";
 import { buildCompareInsights } from "@/lib/explanation-insights";
 import { useToast } from "@/hooks/use-toast";
 import { useLocalStorageState } from "@/hooks/use-local-storage";
@@ -132,6 +131,69 @@ export default function Compare() {
     () => buildCompareInsights(selectedSites),
     [selectedSites],
   );
+
+  const compareChatbotPayload = useMemo<OpenChatbotPayload>(
+    () => ({
+      context: {
+        page: "compare",
+        title: "Site comparison explanation",
+        profile: activeProfile
+          ? {
+              id: activeProfile.id,
+              name: activeProfile.name,
+              sector: activeProfile.sector,
+              priceBand: activeProfile.priceBand,
+              ageGroups: activeProfile.ageGroups,
+              incomeBands: activeProfile.incomeBands,
+              operatingModel: activeProfile.operatingModel,
+            }
+          : undefined,
+        sites: selectedSites.map((site) => ({
+          id: site.id,
+          profileId: site.profileId,
+          name: site.name,
+          address: site.address,
+          lat: site.lat,
+          lng: site.lng,
+          composite: site.composite,
+          demographic: site.demographic,
+          accessibility: site.accessibility,
+          rental: site.rental,
+          competition: site.competition,
+          notes: site.notes,
+        })),
+        hiddenContext: {
+          selectedSiteIds: selected,
+          selectedSitesCount: selectedSites.length,
+          totalProfileSites: profileSites.length,
+          activeProfileId,
+          profileSites: profileSites.map((site) => ({
+            id: site.id,
+            profileId: site.profileId,
+            name: site.name,
+            address: site.address,
+            lat: site.lat,
+            lng: site.lng,
+            composite: site.composite,
+            demographic: site.demographic,
+            accessibility: site.accessibility,
+            rental: site.rental,
+            competition: site.competition,
+            notes: site.notes,
+          })),
+          chartData,
+          comparisonInsights,
+        },
+      },
+      starterPrompt:
+        "Compare these selected sites, identify the strongest option, and explain key trade-offs clearly.",
+    }),
+    [activeProfile, activeProfileId, chartData, comparisonInsights, profileSites, selected, selectedSites],
+  );
+
+  useEffect(() => {
+    setLatestChatbotPayload(compareChatbotPayload);
+  }, [compareChatbotPayload]);
 
   const exportComparisonPdf = async () => {
     setExporting(true);
@@ -310,24 +372,7 @@ export default function Compare() {
       return;
     }
 
-    openChatbot({
-      context: {
-        page: "compare",
-        title: "Site comparison explanation",
-        sites: selectedSites.map((site) => ({
-          id: site.id,
-          name: site.name,
-          address: site.address,
-          composite: site.composite,
-          demographic: site.demographic,
-          accessibility: site.accessibility,
-          rental: site.rental,
-          competition: site.competition,
-        })),
-      },
-      starterPrompt:
-        "Compare these selected sites, identify the strongest option, and explain key trade-offs clearly.",
-    });
+    openChatbot(compareChatbotPayload);
   };
 
   return (
@@ -474,13 +519,6 @@ export default function Compare() {
                   <div key={insight.criterion} className="rounded-xl border bg-muted/20 p-3 text-sm">
                     <div className="font-medium">{insight.criterion}</div>
                     <div className="mt-1 text-xs text-muted-foreground">{insight.detail}</div>
-                    <div className="mt-3">
-                      <ExplanationFeedbackButtons
-                        page="compare"
-                        profileId={activeProfile?.id ?? null}
-                        criterion={insight.criterion}
-                      />
-                    </div>
                   </div>
                 ))}
               </div>
