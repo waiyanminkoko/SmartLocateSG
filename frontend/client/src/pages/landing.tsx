@@ -58,9 +58,9 @@ export default function Landing() {
                 </Button>
               </Link>
               <Link href="/dashboard">
-                <Button variant="secondary" size="lg" data-testid="button-view-demo">
+                {/* <Button variant="secondary" size="lg" data-testid="button-view-demo">
                   View demo
-                </Button>
+                </Button> */}
               </Link>
             </div>
           </div>
