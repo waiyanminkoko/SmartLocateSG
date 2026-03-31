@@ -71,6 +71,7 @@ type CandidateSiteRecord = {
   competition: number | null;
   savedAt: string;
   notes?: string;
+  breakdownDetailsJson?: Record<string, unknown> | null;
 };
 
 type SaveCandidateSiteInput = {
@@ -90,6 +91,10 @@ type SaveCandidateSiteInput = {
   notes?: string;
   scoreNotes?: string;
   breakdownDetailsJson?: Record<string, unknown>;
+};
+
+type UpdateCandidateSiteInput = {
+  name: string;
 };
 
 type BusinessProfileRecord = {
@@ -203,6 +208,7 @@ export interface IStorage {
   // Site Portfolio Management
   getCandidateSites(userId: string): Promise<CandidateSiteRecord[]>;
   saveCandidateSite(siteData: SaveCandidateSiteInput): Promise<CandidateSiteRecord>;
+  updateCandidateSite(siteId: string, userId: string, input: UpdateCandidateSiteInput): Promise<CandidateSiteRecord | null>;
   deleteCandidateSite(siteId: string, userId: string): Promise<void>;
   
   // Demographics / Scoring
@@ -345,8 +351,16 @@ export class MemStorage implements IStorage {
       lng: siteData.lng ?? null,
       planningAreaId: siteData.planningAreaId ?? null,
       notes: siteData.notes,
+      breakdownDetailsJson: siteData.breakdownDetailsJson ?? null,
       savedAt: new Date().toISOString(),
     };
+  }
+
+  async updateCandidateSite(siteId: string, userId: string, input: UpdateCandidateSiteInput): Promise<CandidateSiteRecord | null> {
+    void siteId;
+    void userId;
+    void input;
+    return null;
   }
 
   async deleteCandidateSite(siteId: string, userId: string): Promise<void> {
@@ -414,6 +428,7 @@ function toCandidateSiteRecord(row: {
     competition: parseNumeric(row.score?.competitionScore ?? null),
     savedAt: formatSavedAt(row.site.savedAt),
     notes: row.site.notes ?? undefined,
+    breakdownDetailsJson: (row.score?.breakdownDetailsJson as Record<string, unknown> | null | undefined) ?? null,
   };
 }
 
@@ -500,7 +515,34 @@ type SupabaseSiteScoreRow = {
   accessibility_score: string | number | null;
   rental_pressure_score: string | number | null;
   competition_score: string | number | null;
+  breakdown_details_json: Record<string, unknown> | null;
+  notes: string | null;
 };
+
+function toCandidateSiteRecordFromSupabase(
+  site: SupabaseCandidateSiteRow,
+  score?: SupabaseSiteScoreRow | null,
+): CandidateSiteRecord {
+  return {
+    id: site.id,
+    userId: site.user_id,
+    profileId: site.profile_id,
+    name: site.site_name,
+    address: site.address_label ?? "",
+    postalCode: site.postal_code,
+    lat: parseNumeric(site.lat),
+    lng: parseNumeric(site.lng),
+    planningAreaId: site.planning_area_id,
+    composite: parseNumeric(score?.composite_score ?? null),
+    demographic: parseNumeric(score?.demographic_score ?? null),
+    accessibility: parseNumeric(score?.accessibility_score ?? null),
+    rental: parseNumeric(score?.rental_pressure_score ?? null),
+    competition: parseNumeric(score?.competition_score ?? null),
+    savedAt: formatSavedAt(site.saved_at),
+    notes: site.notes ?? score?.notes ?? undefined,
+    breakdownDetailsJson: score?.breakdown_details_json ?? null,
+  };
+}
 
 function toBusinessProfileRecordFromSupabase(row: SupabaseBusinessProfileRow): BusinessProfileRecord {
   return {
@@ -760,7 +802,7 @@ export class DatabaseStorage implements IStorage {
     if (scoreIds.length > 0) {
       const { data: scoresData, error: scoresError } = await supabase
         .from("site_scores")
-        .select("id, composite_score, demographic_score, accessibility_score, rental_pressure_score, competition_score")
+        .select("id, composite_score, demographic_score, accessibility_score, rental_pressure_score, competition_score, breakdown_details_json, notes")
         .in("id", scoreIds);
 
       if (scoresError) {
@@ -772,27 +814,12 @@ export class DatabaseStorage implements IStorage {
       }
     }
 
-    return sites.map((site) => {
-      const score = site.saved_site_score_id ? scoreMap.get(site.saved_site_score_id) : undefined;
-      return {
-        id: site.id,
-        userId: site.user_id,
-        profileId: site.profile_id,
-        name: site.site_name,
-        address: site.address_label ?? "",
-        postalCode: site.postal_code,
-        lat: parseNumeric(site.lat),
-        lng: parseNumeric(site.lng),
-        planningAreaId: site.planning_area_id,
-        composite: parseNumeric(score?.composite_score ?? null),
-        demographic: parseNumeric(score?.demographic_score ?? null),
-        accessibility: parseNumeric(score?.accessibility_score ?? null),
-        rental: parseNumeric(score?.rental_pressure_score ?? null),
-        competition: parseNumeric(score?.competition_score ?? null),
-        savedAt: formatSavedAt(site.saved_at),
-        notes: site.notes ?? undefined,
-      };
-    });
+    return sites.map((site) =>
+      toCandidateSiteRecordFromSupabase(
+        site,
+        site.saved_site_score_id ? scoreMap.get(site.saved_site_score_id) : undefined,
+      ),
+    );
   }
 
   private async saveCandidateSiteViaSupabase(siteData: SaveCandidateSiteInput): Promise<CandidateSiteRecord> {
@@ -810,7 +837,7 @@ export class DatabaseStorage implements IStorage {
         breakdown_details_json: siteData.breakdownDetailsJson,
         notes: siteData.scoreNotes,
       })
-      .select("id, composite_score, demographic_score, accessibility_score, rental_pressure_score, competition_score")
+      .select("id, composite_score, demographic_score, accessibility_score, rental_pressure_score, competition_score, breakdown_details_json, notes")
       .single();
 
     if (scoreError) {
@@ -841,24 +868,50 @@ export class DatabaseStorage implements IStorage {
     }
 
     const site = insertedSite as SupabaseCandidateSiteRow;
-    return {
-      id: site.id,
-      userId: site.user_id,
-      profileId: site.profile_id,
-      name: site.site_name,
-      address: site.address_label ?? "",
-      postalCode: site.postal_code,
-      lat: parseNumeric(site.lat),
-      lng: parseNumeric(site.lng),
-      planningAreaId: site.planning_area_id,
-      composite: parseNumeric(score.composite_score),
-      demographic: parseNumeric(score.demographic_score),
-      accessibility: parseNumeric(score.accessibility_score),
-      rental: parseNumeric(score.rental_pressure_score),
-      competition: parseNumeric(score.competition_score),
-      savedAt: formatSavedAt(site.saved_at),
-      notes: site.notes ?? undefined,
-    };
+    return toCandidateSiteRecordFromSupabase(site, score);
+  }
+
+  private async updateCandidateSiteViaSupabase(
+    siteId: string,
+    userId: string,
+    input: UpdateCandidateSiteInput,
+  ): Promise<CandidateSiteRecord | null> {
+    const supabase = this.requireSupabaseClient();
+    const { data: updatedSite, error: siteError } = await supabase
+      .from("candidate_sites")
+      .update({
+        site_name: input.name,
+      })
+      .eq("id", siteId)
+      .eq("user_id", userId)
+      .select("*")
+      .maybeSingle();
+
+    if (siteError) {
+      throw siteError;
+    }
+
+    if (!updatedSite) {
+      return null;
+    }
+
+    const site = updatedSite as SupabaseCandidateSiteRow;
+    let score: SupabaseSiteScoreRow | null = null;
+    if (site.saved_site_score_id) {
+      const { data: scoreData, error: scoreError } = await supabase
+        .from("site_scores")
+        .select("id, composite_score, demographic_score, accessibility_score, rental_pressure_score, competition_score, breakdown_details_json, notes")
+        .eq("id", site.saved_site_score_id)
+        .maybeSingle();
+
+      if (scoreError) {
+        throw scoreError;
+      }
+
+      score = (scoreData as SupabaseSiteScoreRow | null) ?? null;
+    }
+
+    return toCandidateSiteRecordFromSupabase(site, score);
   }
 
   private async deleteCandidateSiteViaSupabase(siteId: string, userId: string): Promise<void> {
@@ -1382,6 +1435,34 @@ export class DatabaseStorage implements IStorage {
     const [site] = await db.insert(candidateSites).values(candidatePayload).returning();
 
     return toCandidateSiteRecord({ site, score });
+  }
+
+  async updateCandidateSite(siteId: string, userId: string, input: UpdateCandidateSiteInput): Promise<CandidateSiteRecord | null> {
+    if (this.useHttpProfileFallback) {
+      return this.updateCandidateSiteViaSupabase(siteId, userId, input);
+    }
+
+    const [updatedSite] = await db
+      .update(candidateSites)
+      .set({
+        siteName: input.name,
+      })
+      .where(and(eq(candidateSites.id, siteId), eq(candidateSites.userId, userId)))
+      .returning();
+
+    if (!updatedSite) {
+      return null;
+    }
+
+    const [score] = updatedSite.savedSiteScoreId
+      ? await db
+          .select()
+          .from(siteScores)
+          .where(eq(siteScores.id, updatedSite.savedSiteScoreId))
+          .limit(1)
+      : [null];
+
+    return toCandidateSiteRecord({ site: updatedSite, score: score ?? null });
   }
 
   async deleteCandidateSite(siteId: string, userId: string): Promise<void> {

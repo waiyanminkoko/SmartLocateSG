@@ -37,6 +37,10 @@ const deleteSiteQuerySchema = z.object({
   userId: z.string().min(1, "userId is required"),
 });
 
+const updateSiteSchema = z.object({
+  name: z.string().min(1, "name is required"),
+});
+
 const createProfileSchema = z.object({
   userId: z.string().min(1, "userId is required"),
   name: z.string().min(1, "name is required"),
@@ -911,6 +915,24 @@ export async function registerRoutes(
       }
 
       res.status(500).json({ error: "Failed to delete candidate site." });
+    }
+  });
+
+  app.put("/api/sites/:id", async (req, res) => {
+    try {
+      const { userId } = deleteSiteQuerySchema.parse(req.query);
+      const payload = updateSiteSchema.parse(req.body);
+      const updated = await storage.updateCandidateSite(req.params.id, userId, payload);
+      if (!updated) {
+        return res.status(404).json({ error: "Candidate site not found." });
+      }
+      res.json(updated);
+    } catch (e) {
+      if (e instanceof z.ZodError) {
+        return res.status(400).json({ error: e.flatten() });
+      }
+
+      res.status(500).json({ error: "Failed to update candidate site." });
     }
   });
 
