@@ -27,6 +27,26 @@ export type CandidateSite = {
   planningAreaId?: string;
 };
 
+export function getCandidateSiteDisplayName(
+  site: Pick<CandidateSite, "name" | "address" | "lat" | "lng">,
+) {
+  const trimmedName = site.name?.trim();
+  if (trimmedName) {
+    return trimmedName;
+  }
+
+  const trimmedAddress = site.address?.trim();
+  if (trimmedAddress) {
+    return trimmedAddress.split(",")[0]?.trim() || trimmedAddress;
+  }
+
+  if (typeof site.lat === "number" && typeof site.lng === "number") {
+    return `${site.lat.toFixed(5)}, ${site.lng.toFixed(5)}`;
+  }
+
+  return "Saved site";
+}
+
 export const mockProfiles: BusinessProfile[] = [
   {
     id: "p1",

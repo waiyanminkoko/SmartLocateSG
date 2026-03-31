@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ChartContainer, ChartLegend, ChartLegendContent, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
-import { mockProfiles, mockSites, BusinessProfile, CandidateSite } from "@/lib/mock-data";
+import { getCandidateSiteDisplayName, mockProfiles, mockSites, BusinessProfile, CandidateSite } from "@/lib/mock-data";
 import { openChatbot, setLatestChatbotPayload, type OpenChatbotPayload } from "@/lib/chatbot";
 import { buildCompareInsights } from "@/lib/explanation-insights";
 import { useToast } from "@/hooks/use-toast";
@@ -108,7 +108,7 @@ export default function Compare() {
       selectedSites.map((site, index) => [
         site.id,
         {
-          label: site.name,
+          label: getCandidateSiteDisplayName(site),
           color: colors[index % colors.length],
         },
       ]),
@@ -245,7 +245,7 @@ export default function Compare() {
       pdf.setFontSize(10);
       selectedSites.forEach((site, index) => {
         ensureSpace(18);
-        pdf.text(`${index + 1}. ${site.name} — ${site.address}`, margin, y);
+        pdf.text(`${index + 1}. ${getCandidateSiteDisplayName(site)} — ${site.address}`, margin, y);
         y += 14;
       });
       y += 8;
@@ -265,7 +265,7 @@ export default function Compare() {
       pdf.setFontSize(10);
       pdf.text("Metric", margin + 8, y + 14);
       selectedSites.forEach((site, index) => {
-        pdf.text(site.name, margin + metricColumnWidth + siteColumnWidth * index + 8, y + 14, {
+        pdf.text(getCandidateSiteDisplayName(site), margin + metricColumnWidth + siteColumnWidth * index + 8, y + 14, {
           maxWidth: siteColumnWidth - 12,
         });
       });
@@ -434,7 +434,7 @@ export default function Compare() {
                   data-testid={`checkbox-select-${s.id}`}
                 />
                 <div className="min-w-0">
-                  <div className="truncate text-sm font-medium" data-testid={`text-select-name-${s.id}`}>{s.name}</div>
+                  <div className="truncate text-sm font-medium" data-testid={`text-select-name-${s.id}`}>{getCandidateSiteDisplayName(s)}</div>
                   <div className="truncate text-xs text-muted-foreground" data-testid={`text-select-address-${s.id}`}>{s.address}</div>
                 </div>
               </label>
@@ -444,7 +444,7 @@ export default function Compare() {
           <div className="mt-4 flex flex-wrap gap-2" data-testid="chips-selected">
             {selectedSites.map((s) => (
               <div key={s.id} className="inline-flex items-center gap-2 rounded-full border bg-muted/40 px-3 py-1 text-xs">
-                <span data-testid={`chip-site-${s.id}`}>{s.name}</span>
+                <span data-testid={`chip-site-${s.id}`}>{getCandidateSiteDisplayName(s)}</span>
                 <button
                   className="rounded-full p-1 hover:bg-muted"
                   onClick={() => toggle(s.id)}
@@ -527,7 +527,7 @@ export default function Compare() {
             <div className="grid gap-3 lg:grid-cols-3">
               {selectedSites.map((s) => (
                 <Card key={s.id} className="border bg-card p-5 shadow-sm" data-testid={`card-compare-${s.id}`}>
-                  <div className="text-sm font-semibold" data-testid={`text-compare-name-${s.id}`}>{s.name}</div>
+                  <div className="text-sm font-semibold" data-testid={`text-compare-name-${s.id}`}>{getCandidateSiteDisplayName(s)}</div>
                   <div className="mt-1 text-xs text-muted-foreground" data-testid={`text-compare-address-${s.id}`}>{s.address}</div>
 
                   <div className="mt-4 grid gap-2">

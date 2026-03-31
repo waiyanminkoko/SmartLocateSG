@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { mockProfiles, CandidateSite } from "@/lib/mock-data";
+import { getCandidateSiteDisplayName, mockProfiles, CandidateSite } from "@/lib/mock-data";
 import { openChatbot, setLatestChatbotPayload, type OpenChatbotPayload } from "@/lib/chatbot";
 import { buildPortfolioInsights } from "@/lib/explanation-insights";
 import { fetchJsonWithCache, invalidateApiCache } from "@/lib/api-cache";
@@ -212,7 +212,7 @@ export default function Portfolio() {
 
   const updateNotes = (id: string, notes: string) => {
     setSites((prev) => prev.map((s) => (s.id === id ? { ...s, notes } : s)));
-    toast({ title: "Notes saved", description: "Stored in-memory for this session." });
+    toast({ title: "Notes saved", description: "Stored locally for this session." });
   };
 
   const openOnMap = (site: CandidateSite) => {
@@ -405,7 +405,7 @@ export default function Portfolio() {
           <Card className="border bg-card p-5 shadow-sm" data-testid="card-portfolio-insights">
             <div className="text-sm font-semibold">Saved site insights</div>
             <div className="mt-1 text-xs text-muted-foreground">
-              Insights for the currently focused saved site: {focusSite.name}.
+              Insights for the currently focused saved site: {getCandidateSiteDisplayName(focusSite)}.
             </div>
             <div className="mt-4 space-y-3">
               {portfolioInsights.map((insight) => (
@@ -432,7 +432,7 @@ export default function Portfolio() {
                 <Card key={s.id} className="border bg-card p-5 shadow-sm" data-testid={`card-site-${s.id}`}>
                   <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                     <div>
-                      <div className="text-base font-semibold" data-testid={`text-site-name-${s.id}`}>{s.name}</div>
+                      <div className="text-base font-semibold" data-testid={`text-site-name-${s.id}`}>{getCandidateSiteDisplayName(s)}</div>
                       <div className="mt-1 text-sm text-muted-foreground" data-testid={`text-site-address-${s.id}`}>{s.address}</div>
                       <div className="mt-2 text-xs text-muted-foreground" data-testid={`text-site-meta-${s.id}`}>
                         Profile: {profile?.name ?? "—"} • Saved: {s.savedAt}
@@ -476,7 +476,7 @@ export default function Portfolio() {
                               onChange={(e) => updateNotes(s.id, e.target.value)}
                             />
                             <div className="text-xs text-muted-foreground" data-testid="text-notes-hint">
-                              Notes are saved in-memory (prototype).
+                              Notes are stored locally for this session.
                             </div>
                           </div>
                         </DialogContent>

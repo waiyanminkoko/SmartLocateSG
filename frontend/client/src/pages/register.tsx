@@ -144,7 +144,7 @@ export default function Register() {
                   data-testid="input-register-confirm"
                 />
                 <p className="text-xs text-muted-foreground" data-testid="text-privacy-note">
-                  We respect your privacy. This is a prototype UI only.
+                  We respect your privacy and only use your details for account access.
                 </p>
               </div>
             </div>
@@ -185,7 +185,7 @@ export default function Register() {
                   Terms of Service
                 </div>
                 <div className="text-xs text-muted-foreground" data-testid="text-terms-copy">
-                  By continuing, you agree to the Terms. (Prototype text)
+                  By continuing, you agree to the Terms of Service.
                 </div>
               </div>
             </div>

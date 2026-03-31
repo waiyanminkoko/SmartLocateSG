@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
-import type { Session, User } from "@supabase/supabase-js";
+import type { AuthChangeEvent, Session, User } from "@supabase/supabase-js";
 import { useLocation } from "wouter";
 import { isSupabaseConfigured, supabase } from "@/lib/supabaseClient";
 
@@ -40,7 +40,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    supabase.auth.getSession().then(({ data }: any) => {
+    supabase.auth.getSession().then(({ data }: { data: { session: Session | null } }) => {
       const nextSession = data.session ?? null;
       setSession(nextSession);
       // setUser(nextSession?.user ?? (allowDemoAuth ? demoUser : null));
@@ -62,7 +62,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 
     const { data: listener } = supabase.auth.onAuthStateChange(
-      (_event: any, newSession: any) => {
+      (_event: AuthChangeEvent, newSession: Session | null) => {
         setSession(newSession);
         setUser(newSession?.user ?? null);
 

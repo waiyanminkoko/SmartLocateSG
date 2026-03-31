@@ -60,7 +60,7 @@ export default function Admin() {
     setRefreshing(true);
     toast({
       title: "Refresh queued",
-      description: "Data refresh will run in the background (prototype).",
+      description: "Data refresh will run in the background.",
     });
     setTimeout(() => {
       setRefreshing(false);
@@ -164,7 +164,7 @@ export default function Admin() {
         <Card className="border bg-card p-5 shadow-sm">
           <div className="text-sm font-semibold">Notes</div>
           <ul className="mt-2 text-xs text-muted-foreground">
-            <li>Refresh jobs are manual for the prototype.</li>
+            <li>Refresh jobs are manual right now.</li>
             <li>Degraded sources may reduce scoring accuracy.</li>
             <li>All timestamps are shown in Singapore local time.</li>
           </ul>

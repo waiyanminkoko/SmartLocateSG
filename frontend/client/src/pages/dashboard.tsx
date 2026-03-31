@@ -4,7 +4,7 @@ import { Plus, Scale, Map as MapIcon } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { mockProfiles, mockSites } from "@/lib/mock-data";
+import { getCandidateSiteDisplayName, mockProfiles, mockSites } from "@/lib/mock-data";
 import { useLocalStorageState } from "@/hooks/use-local-storage";
 
 function Stat({ label, value, testid }: { label: string; value: string; testid: string }) {
@@ -124,7 +124,7 @@ export default function Dashboard() {
               </Link>
 
               <div className="rounded-xl border bg-muted/30 p-3 text-xs text-muted-foreground" data-testid="text-dashboard-note">
-                Note: This is a minimal, frontend-only prototype. Scores and map layers are illustrative.
+                Scores and map layers reflect the currently available data sources and fallbacks.
               </div>
             </div>
           </Card>
@@ -156,7 +156,7 @@ export default function Dashboard() {
                   data-testid={`row-site-${s.id}`}
                 >
                   <div>
-                    <div className="text-sm font-medium" data-testid={`text-site-name-${s.id}`}>{s.name}</div>
+                    <div className="text-sm font-medium" data-testid={`text-site-name-${s.id}`}>{getCandidateSiteDisplayName(s)}</div>
                     <div className="text-xs text-muted-foreground" data-testid={`text-site-address-${s.id}`}>{s.address}</div>
                   </div>
                   <div className="text-xs text-muted-foreground" data-testid={`text-site-saved-${s.id}`}>{s.savedAt}</div>

@@ -238,6 +238,39 @@ function isPlusCodeAddress(value: string | null | undefined) {
   return /\b[A-Z0-9]{4,}\+[A-Z0-9]{2,}\b/i.test(value);
 }
 
+function toShortLocationLabel(value: string | null | undefined) {
+  if (!value) {
+    return null;
+  }
+
+  const compact = value
+    .split(/•|,/)[0]
+    ?.replace(/\bSingapore\b/gi, "")
+    .replace(/\b\d{6}\b/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  return compact ? compact.slice(0, 60) : null;
+}
+
+function buildCandidateSiteName({
+  planningAreaName,
+  address,
+  profileName,
+}: {
+  planningAreaName: string | null;
+  address: string | null;
+  profileName: string | null | undefined;
+}) {
+  const locationLabel =
+    toShortLocationLabel(planningAreaName) ??
+    (!isPlusCodeAddress(address) ? toShortLocationLabel(address) : null) ??
+    "Selected site";
+  const profileLabel = toShortLocationLabel(profileName) ?? "Profile";
+
+  return `${locationLabel}_${profileLabel}`;
+}
+
 function toLocalMeters(lat: number, lng: number, originLat: number) {
   const metersPerLatDegree = 111_320;
   const metersPerLngDegree = 111_320 * Math.cos((originLat * Math.PI) / 180);
@@ -529,6 +562,8 @@ export default function MapPage() {
   const [isBreakdownEditMode, setIsBreakdownEditMode] = useState(false);
   const [isNotesSheetOpen, setIsNotesSheetOpen] = useState(false);
   const [scoreNotes, setScoreNotes] = useState("");
+  const [candidateSiteName, setCandidateSiteName] = useState("");
+  const [isSiteNameCustomized, setIsSiteNameCustomized] = useState(false);
 
   const [weights, setWeights] = useState<Weights>(() => presets.Normal);
 
@@ -628,6 +663,9 @@ export default function MapPage() {
 
   const resolvedPlanningAreaName =
     selectedArea?.planningAreaName ?? siteScore?.planningArea?.planningAreaName ?? null;
+  const selectedSiteKey = selectedLatLng
+    ? `${selectedLatLng.lat.toFixed(5)}:${selectedLatLng.lng.toFixed(5)}`
+    : "";
 
   const selectedLocationText = useMemo(() => {
     if (selectedAddress && !isPlusCodeAddress(selectedAddress)) {
@@ -640,6 +678,16 @@ export default function MapPage() {
     }
     return "No location selected yet.";
   }, [resolvedPlanningAreaName, selectedAddress, selectedLatLng]);
+
+  const defaultCandidateSiteName = useMemo(
+    () =>
+      buildCandidateSiteName({
+        planningAreaName: resolvedPlanningAreaName,
+        address: selectedAddress,
+        profileName: activeProfile?.name,
+      }),
+    [activeProfile?.name, resolvedPlanningAreaName, selectedAddress],
+  );
 
   const modeSummary = hasSelectedSite
     ? `Focus mode: ${formatRadiusLabel(focusRadiusMeters)} around selected site`
@@ -662,6 +710,26 @@ export default function MapPage() {
     () => selectedLatLng ?? defaultCenter,
     [selectedLatLng],
   );
+
+  useEffect(() => {
+    if (!selectedSiteKey) {
+      setCandidateSiteName("");
+      setIsSiteNameCustomized(false);
+      return;
+    }
+
+    setIsSiteNameCustomized(false);
+  }, [activeProfileId, selectedSiteKey]);
+
+  useEffect(() => {
+    if (!hasSelectedSite) {
+      return;
+    }
+
+    if (!isSiteNameCustomized || !candidateSiteName.trim()) {
+      setCandidateSiteName(defaultCandidateSiteName);
+    }
+  }, [candidateSiteName, defaultCandidateSiteName, hasSelectedSite, isSiteNameCustomized]);
 
   const displayedOverlayData = useMemo(
     () =>
@@ -1311,6 +1379,8 @@ export default function MapPage() {
       return;
     }
 
+    const resolvedSiteName = candidateSiteName.trim() || defaultCandidateSiteName;
+
     const savedAt = new Date().toLocaleDateString("en-US", {
       month: "short",
       day: "numeric",
@@ -1319,7 +1389,7 @@ export default function MapPage() {
 
     const newSite = {
       id: createId(),
-      name: `${activeProfile.name} site`,
+      name: resolvedSiteName,
       address: selectedLocationText,
       composite,
       demographic: scoreValues.demographic,
@@ -1400,7 +1470,7 @@ export default function MapPage() {
           writeApiCache(`sites:${userId}`, next, SITES_CACHE_TTL_MS);
           return next;
         });
-        toast({ title: "Saved to portfolio", description: "Site added to your list." });
+        toast({ title: "Saved to portfolio", description: `${resolvedSiteName} was added to your list.` });
       }
     })();
   };
@@ -2969,6 +3039,29 @@ export default function MapPage() {
                   Generate a site score first to see targeted improvement recommendations.
                 </div>
               )}
+            </div>
+
+            <div className="rounded-xl border bg-card p-3" data-testid="card-candidate-site-name">
+              <div className="text-xs font-semibold">Candidate site name</div>
+              <div className="mt-1 text-xs text-muted-foreground">
+                Prefilled from the planning area or selected address. Edit it before saving to make shortlist comparisons clearer.
+              </div>
+              <Input
+                value={candidateSiteName}
+                onChange={(event) => {
+                  setCandidateSiteName(event.target.value);
+                  setIsSiteNameCustomized(true);
+                }}
+                placeholder={hasSelectedSite ? defaultCandidateSiteName : "Select a site to generate a name"}
+                disabled={!hasSelectedSite}
+                className="mt-3"
+                data-testid="input-candidate-site-name"
+              />
+              {hasSelectedSite ? (
+                <div className="mt-2 text-[11px] text-muted-foreground" data-testid="text-candidate-site-name-default">
+                  Default format: {defaultCandidateSiteName}
+                </div>
+              ) : null}
             </div>
 
             <div className="grid gap-2">

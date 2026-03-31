@@ -1,4 +1,4 @@
-import type { CandidateSite } from "@/lib/mock-data";
+import { getCandidateSiteDisplayName, type CandidateSite } from "@/lib/mock-data";
 
 export type ExplanationInsight = {
   criterion: string;
@@ -18,14 +18,15 @@ function pickWeakestMetric(site: CandidateSite) {
 
 export function buildPortfolioInsights(site: CandidateSite): ExplanationInsight[] {
   const weakestMetric = pickWeakestMetric(site);
+  const siteName = getCandidateSiteDisplayName(site);
 
   return [
     {
       criterion: "Overall fit",
       detail:
         site.composite >= 75
-          ? `${site.name} is currently one of the stronger saved options with a composite score of ${site.composite}.`
-          : `${site.name} is still a candidate, but the current composite score of ${site.composite} suggests more validation is needed.`,
+          ? `${siteName} is currently one of the stronger saved options with a composite score of ${site.composite}.`
+          : `${siteName} is still a candidate, but the current composite score of ${site.composite} suggests more validation is needed.`,
     },
     {
       criterion: "Main constraint",
@@ -55,15 +56,15 @@ export function buildCompareInsights(sites: CandidateSite[]): ExplanationInsight
   return [
     {
       criterion: "Top composite score",
-      detail: `${strongestComposite.name} currently leads the comparison at ${strongestComposite.composite}/100.`,
+      detail: `${getCandidateSiteDisplayName(strongestComposite)} currently leads the comparison at ${strongestComposite.composite}/100.`,
     },
     {
       criterion: "Best accessibility",
-      detail: `${strongestAccessibility.name} has the strongest transit accessibility score at ${strongestAccessibility.accessibility}/100.`,
+      detail: `${getCandidateSiteDisplayName(strongestAccessibility)} has the strongest transit accessibility score at ${strongestAccessibility.accessibility}/100.`,
     },
     {
       criterion: "Best cost position",
-      detail: `${lowestRentalPressure.name} has the most favorable rental-pressure score at ${lowestRentalPressure.rental}/100.`,
+      detail: `${getCandidateSiteDisplayName(lowestRentalPressure)} has the most favorable rental-pressure score at ${lowestRentalPressure.rental}/100.`,
     },
   ];
 }

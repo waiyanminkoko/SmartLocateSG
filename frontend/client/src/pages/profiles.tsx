@@ -167,7 +167,7 @@ export default function Profiles() {
           setProfiles(mockProfiles);
           toast({
             title: "Profile API unavailable",
-            description: "Showing local prototype profiles.",
+            description: "Showing locally stored profiles.",
             variant: "destructive",
           });
         }
@@ -259,14 +259,6 @@ export default function Profiles() {
       });
     }
   };
-
-  /*
-  Legacy local-only delete behavior
-  const remove = (id: string) => {
-    setProfiles((prev) => prev.filter((p) => p.id !== id));
-    toast({ title: "Profile deleted (prototype)" });
-  };
-  */
 
   const parsePriceBand = (priceBand: string) => {
     const match = priceBand.trim().match(/^(\d+)\s*-\s*(\d+)$/);

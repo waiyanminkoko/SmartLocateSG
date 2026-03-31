@@ -59,7 +59,7 @@ export function AppShell({
                   SmartLocate SG
                 </div>
                 <div className="text-xs text-muted-foreground" data-testid="text-brand-sub">
-                  Prototype
+                  Workspace
                 </div>
               </div>
             </Link>
