@@ -1,65 +1,70 @@
 # SmartLocate SG
 
-SmartLocate SG is a UI-first prototype for a data-driven business site selection tool. It lets users build business profiles, explore a Singapore map, score candidate locations, save them to a portfolio, and compare up to three sites.
+SmartLocate SG is a location scoring web application for business site selection in Singapore. It helps users move from gut-feel decisions to evidence-based comparisons by combining map exploration, profile-based scoring, and side-by-side candidate analysis.
+
+The app addresses a common problem in site planning: data for demographics, accessibility, rental pressure, and competition is usually fragmented. SmartLocate SG brings these signals together in one workflow so teams can shortlist locations faster and explain why one site is stronger than another.
+
+**Target Audience**
+- SMEs planning a new outlet and validating neighborhood demand.
+- Expansion teams comparing multiple sites before lease and rollout decisions.
+- Commercial agents preparing clearer, data-backed recommendations for clients.
+
+**How SmartLocate SG Helps**
+- Define a business profile (sector, price band, target age and income groups, operating model).
+- Explore the map, drop pins, and get a composite score with dimension-level breakdowns.
+- Tune scenario weights (including presets) to test assumptions and ranking sensitivity.
+- Save candidate sites, add notes, and compare up to three options side by side.
 
 **What’s Working**
-- Landing, login, and register flows (UI-only).
-- Dashboard with quick actions, recent profiles, and recent sites.
-- Business profile list with active profile selection and delete.
-- Multi-step business profile wizard with validation and review step.
-- Interactive Google Maps base map, pan/zoom, click-to-drop pin.
-- Postal code / address search (Google Geocoding API) + Places autocomplete.
-- Scenario presets and custom weight sliders (auto-normalized).
-- Live planning-area choropleth overlays for composite, demographics, accessibility, and vacancy when available.
-- Overview mode for nationwide planning-area coverage plus focus mode for a selected site radius.
-- Radius-filtered MRT station, MRT exit, and bus stop layers on the map.
-- Overlay legend, planning area details panel, and data freshness banner.
-- Score breakdown with AI-style explanation dialog and persistent explanation feedback capture.
-- Portfolio with profile filter, notes editor, compare selection, and explanation feedback items.
-- LocalStorage persistence for profiles and sites (temporary demo storage).
-- Compare dashboard with side-by-side stats, a bar chart, explanation feedback items, and client-side PDF export.
-- Admin data status screen with source freshness and manual refresh.
-- Admin reset button for clearing demo data.
+- Landing page with product positioning, workflows, and scoring pillars.
+- Login/register UI and protected routes for app pages.
+- Dashboard with quick actions and recent activity summaries.
+- Business profile list and multi-step profile wizard with create, edit, activate, and delete flows.
+- Interactive Google Maps page with click-to-score, pan/zoom, and selected-site context.
+- Postal/address search and Google Places autocomplete integration.
+- Server-backed map scoring endpoint with score breakdown response.
+- Planning-area choropleth overlays (Composite, Demographics, Accessibility, Vacancy) with legend and visibility controls.
+- Overview mode and focus mode, including radius-filtered MRT stations, MRT exits, and bus stops.
+- Portfolio page with API-backed fetch for profiles/sites and local cached persistence.
+- Compare page with side-by-side metrics, chart visualizations, explanation insights, and client-side PDF export.
+- Explain-score and chatbot endpoints with graceful fallback responses when AI service is unavailable.
+- Admin screen for source status visibility plus demo/local data reset actions.
 
 **Current Limitations**
-- Some pages still fall back to demo/local data when backend APIs or Supabase access are unavailable.
-- Postal search requires Google Geocoding API to be enabled.
-- The UI still reads sites and profiles from localStorage; the server persistence layer is now scaffolded separately.
-- The current overlay implementation is planning-area only; district and region aggregation are not implemented yet.
+- Some client flows still rely on localStorage and demo fallbacks, especially compare selections and resilience paths when APIs fail.
+- Postal search and place autocomplete require valid Google API configuration.
+- AI explanations/chatbot quality depends on Gemini configuration; fallback logic is used when Gemini is unavailable.
+- Overlay aggregation currently focuses on planning areas; district and region aggregation are not implemented.
+- Data source freshness indicators and manual refresh are still prototype-oriented for demonstration.
 
 **Current Delivery Status**
-- Done: Planning-area choropleth overlay on Google Maps.
-- Done: Overview mode and focus mode with radius-based filtering.
-- Done: Overlay legend with explicit score bands and live range display.
-- Done: Overlay visibility toggle independent from overlay type selection.
-- Done: Radius-filtered MRT stations, MRT exits, and bus stop layers.
-- Done: Zoom-gated MRT exits for map readability.
-- Done: Selected-site context card and improved right-panel empty states.
-- Done: Live site scoring flow on pin drop with clearer score hierarchy.
-- Done: Compare page PDF export.
-- Done: Explanation feedback capture on map, compare, and portfolio.
-- Done: Sticky map layout so the map stays visible while side panels scroll.
-- Pending / stretch: District and region overlay aggregation.
-- Pending / stretch: Full backend persistence replacing remaining localStorage fallbacks.
+- Completed: End-to-end core flow for profile setup, map scoring, candidate saving, and comparison.
+- Completed: API routes for profiles, sites, map overlays, map layers, and site scoring.
+- Completed: Hybrid persistence model with API-first fetch plus local fallback and cache behavior.
+- Completed: Explainability surfaces across map, portfolio, and compare with feedback capture.
+- Completed: Compare PDF export and admin reset tooling for demo operations.
+- In progress: Full removal of remaining localStorage-dependent fallback paths.
+- Pending / stretch: District and region overlay aggregation beyond planning-area coverage.
+- Pending / stretch: Production-grade data refresh and hardening of AI-assisted explanation flows.
 
 **Routes**
-- `/` landing
-- `/login` login
-- `/register` register
-- `/dashboard` overview
-- `/profiles` profiles list
-- `/profiles/new` profile wizard
-- `/map` map + scoring
-- `/portfolio` candidate sites
-- `/compare` comparison
-- `/admin` data status
+- / landing
+- /login login
+- /register register
+- /dashboard overview
+- /profiles profiles list
+- /profiles/new profile wizard
+- /map map + scoring
+- /portfolio candidate sites
+- /compare comparison
+- /admin data status
 
 **Tech Stack**
-- React 19 + TypeScript + Vite
-- Wouter routing
-- Tailwind v4 + shadcn/ui components
-- Google Maps JavaScript API
-- Express server scaffold (dev middleware + production static hosting)
+- Frontend: React 19, TypeScript, Vite, Wouter, Tailwind v4, shadcn/ui.
+- Map and geocoding: Google Maps JavaScript API + Places services.
+- Backend: Node/Express-style server with REST endpoints for profiles, sites, overlays, layers, scoring, and explanations.
+- Data and persistence: Supabase/PostgreSQL integration with local cache/fallback handling for prototype continuity.
+- AI assistance: Gemini-backed explanation/chatbot endpoints with fallback response logic.
 
 **Run Locally**
 ```bash
