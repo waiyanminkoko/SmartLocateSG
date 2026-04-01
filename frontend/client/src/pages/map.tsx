@@ -271,6 +271,58 @@ function buildCandidateSiteName({
   return `${locationLabel}_${profileLabel}`;
 }
 
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" ? (value as Record<string, unknown>) : null;
+}
+
+function toOptionalString(value: unknown) {
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
+}
+
+function toOptionalNumber(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function toSavedExplanationItems(value: unknown) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((item) => {
+      const record = asRecord(item);
+      const label = toOptionalString(record?.label);
+      const score = toOptionalNumber(record?.score);
+      const detail = toOptionalString(record?.detail);
+
+      if (!label || score === undefined || !detail) {
+        return null;
+      }
+
+      return { label, score, detail };
+    })
+    .filter((item): item is { label: string; score: number; detail: string } => Boolean(item));
+}
+
+function toSavedWeights(value: unknown): Weights | null {
+  const record = asRecord(value);
+  const demographic = toOptionalNumber(record?.demographic);
+  const accessibility = toOptionalNumber(record?.accessibility);
+  const rental = toOptionalNumber(record?.rental);
+  const competition = toOptionalNumber(record?.competition);
+
+  if (
+    demographic === undefined ||
+    accessibility === undefined ||
+    rental === undefined ||
+    competition === undefined
+  ) {
+    return null;
+  }
+
+  return { demographic, accessibility, rental, competition };
+}
+
 function toLocalMeters(lat: number, lng: number, originLat: number) {
   const metersPerLatDegree = 111_320;
   const metersPerLngDegree = 111_320 * Math.cos((originLat * Math.PI) / 180);
@@ -520,6 +572,8 @@ export default function MapPage() {
     profileId?: string;
     siteName?: string;
     siteAddress?: string;
+    scoreNotes?: string;
+    breakdownDetailsJson?: Record<string, unknown>;
   } | null>(null);
   const [mapReady, setMapReady] = useState(false);
   const [mapZoom, setMapZoom] = useState(12);
@@ -564,6 +618,7 @@ export default function MapPage() {
   const [scoreNotes, setScoreNotes] = useState("");
   const [candidateSiteName, setCandidateSiteName] = useState("");
   const [isSiteNameCustomized, setIsSiteNameCustomized] = useState(false);
+  const [restoredSiteName, setRestoredSiteName] = useState<string | null>(null);
 
   const [weights, setWeights] = useState<Weights>(() => presets.Normal);
 
@@ -715,11 +770,14 @@ export default function MapPage() {
     if (!selectedSiteKey) {
       setCandidateSiteName("");
       setIsSiteNameCustomized(false);
+      setRestoredSiteName(null);
       return;
     }
 
-    setIsSiteNameCustomized(false);
-  }, [activeProfileId, selectedSiteKey]);
+    if (!restoredSiteName) {
+      setIsSiteNameCustomized(false);
+    }
+  }, [activeProfileId, restoredSiteName, selectedSiteKey]);
 
   useEffect(() => {
     if (!hasSelectedSite) {
@@ -727,9 +785,9 @@ export default function MapPage() {
     }
 
     if (!isSiteNameCustomized || !candidateSiteName.trim()) {
-      setCandidateSiteName(defaultCandidateSiteName);
+      setCandidateSiteName(restoredSiteName ?? defaultCandidateSiteName);
     }
-  }, [candidateSiteName, defaultCandidateSiteName, hasSelectedSite, isSiteNameCustomized]);
+  }, [candidateSiteName, defaultCandidateSiteName, hasSelectedSite, isSiteNameCustomized, restoredSiteName]);
 
   const displayedOverlayData = useMemo(
     () =>
@@ -966,6 +1024,133 @@ export default function MapPage() {
     typeof crypto !== "undefined" && "randomUUID" in crypto
       ? crypto.randomUUID()
       : `s-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+
+  const clearRestoredSiteDetails = () => {
+    setExplanationSummary("");
+    setServerExplanationItems([]);
+    setDetailedBreakdownText("");
+    setScoreNotes("");
+  };
+
+  const restoreSavedSiteDetails = (selection: {
+    lat: number;
+    lng: number;
+    siteName?: string;
+    scoreNotes?: string;
+    breakdownDetailsJson?: Record<string, unknown>;
+  }) => {
+    clearRestoredSiteDetails();
+    setRestoredSiteName(selection.siteName?.trim() || null);
+
+    if (selection.siteName) {
+      setCandidateSiteName(selection.siteName);
+      setIsSiteNameCustomized(true);
+    }
+
+    if (selection.scoreNotes) {
+      setScoreNotes(selection.scoreNotes);
+    }
+
+    const snapshot = asRecord(selection.breakdownDetailsJson);
+    if (!snapshot) {
+      return;
+    }
+
+    const summary = toOptionalString(snapshot.summary);
+    const markdown = toOptionalString(snapshot.markdown);
+    const items = toSavedExplanationItems(snapshot.items);
+    const scenarioName = toOptionalString(snapshot.scenario);
+    const savedWeights = toSavedWeights(snapshot.weights);
+    const rawBreakdown = asRecord(snapshot.rawBreakdown);
+    const planningArea = asRecord(snapshot.planningArea);
+    const scoresRecord = asRecord(snapshot.scores);
+
+    if (summary) {
+      setExplanationSummary(summary);
+    }
+
+    if (markdown) {
+      setDetailedBreakdownText(markdown);
+    }
+
+    if (items.length > 0) {
+      setServerExplanationItems(items);
+    }
+
+    if (scenarioName) {
+      setScenario(scenarioName);
+    }
+
+    if (savedWeights) {
+      setWeights(normalize(savedWeights));
+    }
+
+    const analysisRadiusMeters = toOptionalNumber(rawBreakdown?.analysisRadiusMeters);
+    if (analysisRadiusMeters) {
+      setFocusRadiusMeters(analysisRadiusMeters);
+    }
+
+    const restoredSiteScore: SiteScoreResponse = {
+      lat: selection.lat,
+      lng: selection.lng,
+      planningArea: planningArea
+        ? {
+            planningAreaId: toOptionalString(planningArea.planningAreaId) ?? "",
+            planningAreaName: toOptionalString(planningArea.planningAreaName) ?? "Saved planning area",
+            areaCode: toOptionalString(planningArea.areaCode) ?? "",
+            regionName: toOptionalString(planningArea.regionName) ?? null,
+            populationTotal: toOptionalNumber(planningArea.populationTotal) ?? null,
+            effectiveYear: toOptionalNumber(planningArea.effectiveYear) ?? null,
+            busStopCount: toOptionalNumber(planningArea.busStopCount) ?? 0,
+            mrtExitCount: toOptionalNumber(planningArea.mrtExitCount) ?? 0,
+            avgUnitPricePsf: toOptionalNumber(planningArea.avgUnitPricePsf) ?? null,
+            retailTransactionCount: toOptionalNumber(planningArea.retailTransactionCount) ?? 0,
+            demographicScore: toOptionalNumber(planningArea.demographicScore) ?? null,
+            accessibilityScore: toOptionalNumber(planningArea.accessibilityScore) ?? null,
+            vacancyScore: toOptionalNumber(planningArea.vacancyScore) ?? null,
+            compositeScore: toOptionalNumber(planningArea.compositeScore) ?? null,
+          }
+        : null,
+      scores: {
+        composite: toOptionalNumber(scoresRecord?.composite) ?? null,
+        demographic: toOptionalNumber(scoresRecord?.demographic) ?? null,
+        accessibility: toOptionalNumber(scoresRecord?.accessibility) ?? null,
+        rental: toOptionalNumber(scoresRecord?.rental) ?? null,
+        competition: toOptionalNumber(scoresRecord?.competition) ?? null,
+      },
+      breakdownDetails: {
+        analysisRadiusMeters: analysisRadiusMeters ?? focusRadiusMeters,
+        busStopsWithinRadius: toOptionalNumber(rawBreakdown?.busStopsWithinRadius) ?? 0,
+        mrtExitsWithinRadius: toOptionalNumber(rawBreakdown?.mrtExitsWithinRadius) ?? 0,
+        competitionCountWithinRadius: toOptionalNumber(rawBreakdown?.competitionCountWithinRadius) ?? null,
+        competitionCategory: toOptionalString(rawBreakdown?.competitionCategory) ?? "saved snapshot",
+        populationTotal: toOptionalNumber(rawBreakdown?.populationTotal) ?? null,
+        avgUnitPricePsf: toOptionalNumber(rawBreakdown?.avgUnitPricePsf) ?? null,
+        retailTransactionCount: toOptionalNumber(rawBreakdown?.retailTransactionCount) ?? 0,
+      },
+    };
+
+    setSiteScore(restoredSiteScore);
+
+    if (restoredSiteScore.planningArea) {
+      setSelectedArea({
+        planningAreaId: restoredSiteScore.planningArea.planningAreaId,
+        planningAreaName: restoredSiteScore.planningArea.planningAreaName,
+        areaCode: restoredSiteScore.planningArea.areaCode,
+        regionName: restoredSiteScore.planningArea.regionName,
+        composite: restoredSiteScore.planningArea.compositeScore,
+        demographics: restoredSiteScore.planningArea.demographicScore,
+        accessibility: restoredSiteScore.planningArea.accessibilityScore,
+        vacancy: restoredSiteScore.planningArea.vacancyScore,
+        populationTotal: restoredSiteScore.planningArea.populationTotal,
+        effectiveYear: restoredSiteScore.planningArea.effectiveYear,
+        busStopCount: restoredSiteScore.planningArea.busStopCount,
+        mrtExitCount: restoredSiteScore.planningArea.mrtExitCount,
+        avgUnitPricePsf: restoredSiteScore.planningArea.avgUnitPricePsf,
+        retailTransactionCount: restoredSiteScore.planningArea.retailTransactionCount,
+      });
+    }
+  };
 
   const clearDataLayer = (layer: any | null) => {
     if (!layer) {
@@ -1252,6 +1437,8 @@ export default function MapPage() {
     profileId?: string;
     siteName?: string;
     siteAddress?: string;
+    scoreNotes?: string;
+    breakdownDetailsJson?: Record<string, unknown>;
   }) => {
     if (!mapRef.current) return;
     const loc = { lat: selection.lat, lng: selection.lng };
@@ -1267,6 +1454,7 @@ export default function MapPage() {
     if (selection.profileId && profiles.some((p) => p.id === selection.profileId)) {
       handleProfileChange(selection.profileId);
     }
+    restoreSavedSiteDetails(selection);
   };
 
   const reverseGeocode = (lat: number, lng: number) => {
@@ -1333,6 +1521,8 @@ export default function MapPage() {
       const loc = result.geometry.location;
       mapRef.current.setCenter(loc);
       mapRef.current.setZoom(16);
+      clearRestoredSiteDetails();
+      setRestoredSiteName(null);
       setSelectedLatLng({ lat: loc.lat, lng: loc.lng });
       setSelectedAddress(result.formatted_address ?? address);
       setPin(loc);
@@ -1402,6 +1592,7 @@ export default function MapPage() {
       lng: selectedLatLng.lng,
       notes: scoreNotes,
       planningAreaId: siteScore.planningArea?.planningAreaId,
+      breakdownDetailsJson: undefined as Record<string, unknown> | undefined,
     };
 
     const breakdownPayload = {
@@ -1424,10 +1615,14 @@ export default function MapPage() {
             priceBand: activeProfile.priceBand,
           }
         : null,
+      scenario,
+      weights,
       generatedAt: new Date().toISOString(),
       planningArea: siteScore.planningArea,
       rawBreakdown: siteScore.breakdownDetails,
     };
+
+    newSite.breakdownDetailsJson = breakdownPayload;
 
     void (async () => {
       try {
@@ -1706,6 +1901,9 @@ export default function MapPage() {
         lng: number;
         profileId?: string;
         siteName?: string;
+        siteAddress?: string;
+        scoreNotes?: string;
+        breakdownDetailsJson?: Record<string, unknown>;
       };
       if (typeof data.lat === "number" && typeof data.lng === "number") {
         setPendingSelection(data);
@@ -1867,7 +2065,7 @@ export default function MapPage() {
           {
             icon: {
               path: googleRef.current?.maps?.SymbolPath?.CIRCLE ?? 0,
-              scale: 5,
+              scale: 8,
               fillColor: "#7c3aed",
               fillOpacity: 0.9,
               strokeColor: "#ffffff",
@@ -1901,7 +2099,7 @@ export default function MapPage() {
           {
             icon: {
               path: googleRef.current?.maps?.SymbolPath?.CIRCLE ?? 0,
-              scale: 4,
+              scale: 6,
               fillColor: "#2563eb",
               fillOpacity: 0.9,
               strokeColor: "#ffffff",
@@ -1935,7 +2133,7 @@ export default function MapPage() {
           {
             icon: {
               path: googleRef.current?.maps?.SymbolPath?.CIRCLE ?? 0,
-              scale: 3,
+              scale: 5,
               fillColor: "#059669",
               fillOpacity: 0.85,
               strokeColor: "#ffffff",
@@ -2122,6 +2320,8 @@ export default function MapPage() {
           const lat = event.latLng.lat();
           const lng = event.latLng.lng();
           setSelectedTransportFeature(null);
+          clearRestoredSiteDetails();
+          setRestoredSiteName(null);
           setSelectedLatLng({ lat, lng });
           reverseGeocode(lat, lng);
           setPin(event.latLng);
@@ -2212,6 +2412,8 @@ export default function MapPage() {
             map.setCenter(location);
             map.setZoom(16);
             setSelectedTransportFeature(null);
+            clearRestoredSiteDetails();
+            setRestoredSiteName(null);
             setSelectedLatLng({ lat, lng });
             const address = place.formatted_address || place.name || `Lat ${formatLatLng(lat, lng)}`;
             setSelectedAddress(address);
@@ -2699,6 +2901,8 @@ export default function MapPage() {
                   clearPin();
                   mapRef.current.setCenter(defaultCenter);
                   mapRef.current.setZoom(12);
+                  clearRestoredSiteDetails();
+                  setRestoredSiteName(null);
                   setSelectedLatLng(null);
                   setSelectedAddress(null);
                   setSelectedArea(null);

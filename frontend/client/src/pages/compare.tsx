@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ChartContainer, ChartLegend, ChartLegendContent, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
-import { getCandidateSiteDisplayName, mockProfiles, mockSites, BusinessProfile, CandidateSite } from "@/lib/mock-data";
+import { getCandidateSiteDisplayName, mockProfiles, mockSites, type BusinessProfile, type CandidateSite } from "@/lib/mock-data";
 import { openChatbot, setLatestChatbotPayload, type OpenChatbotPayload } from "@/lib/chatbot";
 import { buildCompareInsights } from "@/lib/explanation-insights";
 import { useToast } from "@/hooks/use-toast";
@@ -20,17 +20,14 @@ export default function Compare() {
   const [profiles] = useLocalStorageState<BusinessProfile[]>("smartlocate:profiles", mockProfiles);
   const [exporting, setExporting] = useState(false);
 
-  const activeProfile = useMemo(() => profiles.find((p) => p.active), [profiles]);
-  const activeProfileId = activeProfile?.id ?? "";
-  const profileSites = useMemo(
-    () => (activeProfileId ? sites.filter((s) => s.profileId === activeProfileId) : []),
-    [sites, activeProfileId],
-  );
+  const activeProfile = useMemo(() => profiles.find((profile) => profile.active) ?? null, [profiles]);
+  const availableSites = sites;
 
   const [selected, setSelected] = useState<string[]>(() => {
     if (typeof window === "undefined") {
       return [sites[0]?.id, sites[1]?.id].filter(Boolean) as string[];
     }
+
     const saved = localStorage.getItem("compare:selected");
     if (saved) {
       try {
@@ -42,12 +39,13 @@ export default function Compare() {
         return [sites[0]?.id, sites[1]?.id].filter(Boolean) as string[];
       }
     }
+
     return [sites[0]?.id, sites[1]?.id].filter(Boolean) as string[];
   });
 
   useEffect(() => {
-    const allowedIds = new Set(profileSites.map((s) => s.id));
-    const defaultIds = profileSites.slice(0, 2).map((s) => s.id);
+    const allowedIds = new Set(availableSites.map((site) => site.id));
+    const defaultIds = availableSites.slice(0, 2).map((site) => site.id);
 
     setSelected((prev) => {
       const filtered = prev.filter((id) => allowedIds.has(id));
@@ -56,22 +54,47 @@ export default function Compare() {
       if (next.length === prev.length && next.every((id, index) => id === prev[index])) {
         return prev;
       }
+
       return next;
     });
-  }, [profileSites]);
+  }, [availableSites]);
 
   useEffect(() => {
     localStorage.setItem("compare:selected", JSON.stringify(selected));
   }, [selected]);
 
   const selectedSites = useMemo(
-    () => profileSites.filter((s) => selected.includes(s.id)).slice(0, 3),
-    [profileSites, selected],
+    () => availableSites.filter((site) => selected.includes(site.id)).slice(0, 3),
+    [availableSites, selected],
+  );
+
+  const comparisonProfile = useMemo(() => {
+    const selectedProfileIds = Array.from(
+      new Set(
+        selectedSites
+          .map((site) => site.profileId)
+          .filter((profileId): profileId is string => Boolean(profileId)),
+      ),
+    );
+
+    if (selectedProfileIds.length !== 1) {
+      return null;
+    }
+
+    return profiles.find((profile) => profile.id === selectedProfileIds[0]) ?? null;
+  }, [profiles, selectedSites]);
+
+  const profileNameById = useMemo(
+    () => new Map(profiles.map((profile) => [profile.id, profile.name])),
+    [profiles],
   );
 
   const toggle = (id: string) => {
     setSelected((prev) => {
-      if (prev.includes(id)) return prev.filter((x) => x !== id);
+      if (prev.includes(id)) {
+        return prev.filter((entry) => entry !== id);
+      }
+
       if (prev.length >= 3) {
         toast({
           title: "Max 3 sites",
@@ -80,6 +103,7 @@ export default function Compare() {
         });
         return prev;
       }
+
       return [...prev, id];
     });
   };
@@ -92,15 +116,17 @@ export default function Compare() {
     { key: "competition", label: "Competition density" },
   ] as const;
 
-  const chartData = useMemo(() => {
-    return dims.map((d) => {
-      const row: Record<string, string | number> = { metric: d.label };
-      selectedSites.forEach((site) => {
-        row[site.id] = (site as any)[d.key] as number;
-      });
-      return row;
-    });
-  }, [dims, selectedSites]);
+  const chartData = useMemo(
+    () =>
+      dims.map((dimension) => {
+        const row: Record<string, string | number> = { metric: dimension.label };
+        selectedSites.forEach((site) => {
+          row[site.id] = (site as CandidateSite & Record<string, number>)[dimension.key];
+        });
+        return row;
+      }),
+    [dims, selectedSites],
+  );
 
   const chartConfig = useMemo(() => {
     const colors = ["hsl(var(--chart-1))", "hsl(var(--chart-2))", "hsl(var(--chart-3))"];
@@ -127,25 +153,22 @@ export default function Compare() {
     [],
   );
 
-  const comparisonInsights = useMemo(
-    () => buildCompareInsights(selectedSites),
-    [selectedSites],
-  );
+  const comparisonInsights = useMemo(() => buildCompareInsights(selectedSites), [selectedSites]);
 
   const compareChatbotPayload = useMemo<OpenChatbotPayload>(
     () => ({
       context: {
         page: "compare",
         title: "Site comparison explanation",
-        profile: activeProfile
+        profile: comparisonProfile
           ? {
-              id: activeProfile.id,
-              name: activeProfile.name,
-              sector: activeProfile.sector,
-              priceBand: activeProfile.priceBand,
-              ageGroups: activeProfile.ageGroups,
-              incomeBands: activeProfile.incomeBands,
-              operatingModel: activeProfile.operatingModel,
+              id: comparisonProfile.id,
+              name: comparisonProfile.name,
+              sector: comparisonProfile.sector,
+              priceBand: comparisonProfile.priceBand,
+              ageGroups: comparisonProfile.ageGroups,
+              incomeBands: comparisonProfile.incomeBands,
+              operatingModel: comparisonProfile.operatingModel,
             }
           : undefined,
         sites: selectedSites.map((site) => ({
@@ -165,9 +188,9 @@ export default function Compare() {
         hiddenContext: {
           selectedSiteIds: selected,
           selectedSitesCount: selectedSites.length,
-          totalProfileSites: profileSites.length,
-          activeProfileId,
-          profileSites: profileSites.map((site) => ({
+          totalProfileSites: availableSites.length,
+          activeProfileId: comparisonProfile?.id ?? activeProfile?.id ?? null,
+          profileSites: availableSites.map((site) => ({
             id: site.id,
             profileId: site.profileId,
             name: site.name,
@@ -188,7 +211,7 @@ export default function Compare() {
       starterPrompt:
         "Compare these selected sites, identify the strongest option, and explain key trade-offs clearly.",
     }),
-    [activeProfile, activeProfileId, chartData, comparisonInsights, profileSites, selected, selectedSites],
+    [activeProfile, availableSites, chartData, comparisonInsights, comparisonProfile, selected, selectedSites],
   );
 
   useEffect(() => {
@@ -231,7 +254,11 @@ export default function Compare() {
 
       pdf.setFont("helvetica", "normal");
       pdf.setFontSize(10);
-      pdf.text(`Profile: ${activeProfile?.name ?? "None selected"}`, margin, y);
+      pdf.text(
+        `Profile: ${comparisonProfile?.name ?? (selectedSites.length > 0 ? "Multiple profiles" : activeProfile?.name ?? "None selected")}`,
+        margin,
+        y,
+      );
       y += 14;
       pdf.text(`Prepared on: ${exportTimestamp}`, margin, y);
       y += 20;
@@ -245,7 +272,8 @@ export default function Compare() {
       pdf.setFontSize(10);
       selectedSites.forEach((site, index) => {
         ensureSpace(18);
-        pdf.text(`${index + 1}. ${getCandidateSiteDisplayName(site)} — ${site.address}`, margin, y);
+        const profileName = profileNameById.get(site.profileId) ?? "Unassigned";
+        pdf.text(`${index + 1}. ${getCandidateSiteDisplayName(site)} (${profileName}) - ${site.address}`, margin, y);
         y += 14;
       });
       y += 8;
@@ -399,10 +427,10 @@ export default function Compare() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight" data-testid="text-compare-title">Compare Sites</h1>
           <p className="mt-1 text-sm text-muted-foreground" data-testid="text-compare-subtitle">
-            Compare 2–3 candidate sites side-by-side.
+            Compare 2-3 candidate sites side-by-side, even across different profiles.
           </p>
           <p className="mt-1 text-xs text-muted-foreground" data-testid="text-compare-active-profile">
-            Active profile: {activeProfile?.name ?? "None selected"}
+            Scope: {comparisonProfile?.name ?? (selectedSites.length > 0 ? "Multiple profiles" : activeProfile?.name ?? "All saved sites")}
           </p>
           <p className="mt-1 text-xs text-muted-foreground">
             Prepared on: {exportTimestamp}
@@ -411,44 +439,42 @@ export default function Compare() {
 
         <Card className="border bg-card p-5 shadow-sm">
           <div className="text-sm font-semibold" data-testid="text-compare-select-title">Select sites</div>
-          {!activeProfileId ? (
-            <div className="mt-3 rounded-xl border bg-muted/30 p-3 text-sm text-muted-foreground" data-testid="status-no-active-profile">
-              Select an active business profile in Profiles before comparing sites.
-            </div>
-          ) : null}
-          {activeProfileId && profileSites.length === 0 ? (
+          {availableSites.length === 0 ? (
             <div className="mt-3 rounded-xl border bg-muted/30 p-3 text-sm text-muted-foreground" data-testid="status-no-sites-for-profile">
-              No saved candidate sites for the active profile yet.
+              No saved candidate sites are available yet.
             </div>
           ) : null}
           <div className="mt-3 grid gap-2 md:grid-cols-3">
-            {profileSites.map((s) => (
+            {availableSites.map((site) => (
               <label
-                key={s.id}
+                key={site.id}
                 className="flex cursor-pointer items-start gap-3 rounded-xl border bg-card p-3"
-                data-testid={`row-select-site-${s.id}`}
+                data-testid={`row-select-site-${site.id}`}
               >
                 <Checkbox
-                  checked={selected.includes(s.id)}
-                  onCheckedChange={() => toggle(s.id)}
-                  data-testid={`checkbox-select-${s.id}`}
+                  checked={selected.includes(site.id)}
+                  onCheckedChange={() => toggle(site.id)}
+                  data-testid={`checkbox-select-${site.id}`}
                 />
                 <div className="min-w-0">
-                  <div className="truncate text-sm font-medium" data-testid={`text-select-name-${s.id}`}>{getCandidateSiteDisplayName(s)}</div>
-                  <div className="truncate text-xs text-muted-foreground" data-testid={`text-select-address-${s.id}`}>{s.address}</div>
+                  <div className="truncate text-sm font-medium" data-testid={`text-select-name-${site.id}`}>{getCandidateSiteDisplayName(site)}</div>
+                  <div className="truncate text-xs text-muted-foreground" data-testid={`text-select-address-${site.id}`}>{site.address}</div>
+                  <div className="mt-1 truncate text-[11px] text-muted-foreground">
+                    Profile: {profileNameById.get(site.profileId) ?? "Unassigned"}
+                  </div>
                 </div>
               </label>
             ))}
           </div>
 
           <div className="mt-4 flex flex-wrap gap-2" data-testid="chips-selected">
-            {selectedSites.map((s) => (
-              <div key={s.id} className="inline-flex items-center gap-2 rounded-full border bg-muted/40 px-3 py-1 text-xs">
-                <span data-testid={`chip-site-${s.id}`}>{getCandidateSiteDisplayName(s)}</span>
+            {selectedSites.map((site) => (
+              <div key={site.id} className="inline-flex items-center gap-2 rounded-full border bg-muted/40 px-3 py-1 text-xs">
+                <span data-testid={`chip-site-${site.id}`}>{getCandidateSiteDisplayName(site)}</span>
                 <button
                   className="rounded-full p-1 hover:bg-muted"
-                  onClick={() => toggle(s.id)}
-                  data-testid={`button-remove-chip-${s.id}`}
+                  onClick={() => toggle(site.id)}
+                  data-testid={`button-remove-chip-${site.id}`}
                 >
                   <X className="h-3.5 w-3.5" aria-hidden="true" />
                 </button>
@@ -525,16 +551,19 @@ export default function Compare() {
             </Card>
 
             <div className="grid gap-3 lg:grid-cols-3">
-              {selectedSites.map((s) => (
-                <Card key={s.id} className="border bg-card p-5 shadow-sm" data-testid={`card-compare-${s.id}`}>
-                  <div className="text-sm font-semibold" data-testid={`text-compare-name-${s.id}`}>{getCandidateSiteDisplayName(s)}</div>
-                  <div className="mt-1 text-xs text-muted-foreground" data-testid={`text-compare-address-${s.id}`}>{s.address}</div>
+              {selectedSites.map((site) => (
+                <Card key={site.id} className="border bg-card p-5 shadow-sm" data-testid={`card-compare-${site.id}`}>
+                  <div className="text-sm font-semibold" data-testid={`text-compare-name-${site.id}`}>{getCandidateSiteDisplayName(site)}</div>
+                  <div className="mt-1 text-xs text-muted-foreground" data-testid={`text-compare-address-${site.id}`}>{site.address}</div>
+                  <div className="mt-1 text-[11px] text-muted-foreground">
+                    Profile: {profileNameById.get(site.profileId) ?? "Unassigned"}
+                  </div>
 
                   <div className="mt-4 grid gap-2">
-                    {dims.map((d) => (
-                      <div key={d.key} className="flex items-center justify-between" data-testid={`row-compare-${d.key}-${s.id}`}>
-                        <div className="text-xs text-muted-foreground" data-testid={`text-compare-label-${d.key}-${s.id}`}>{d.label}</div>
-                        <div className="text-sm font-semibold" data-testid={`text-compare-value-${d.key}-${s.id}`}>{(s as any)[d.key]}</div>
+                    {dims.map((dimension) => (
+                      <div key={dimension.key} className="flex items-center justify-between" data-testid={`row-compare-${dimension.key}-${site.id}`}>
+                        <div className="text-xs text-muted-foreground" data-testid={`text-compare-label-${dimension.key}-${site.id}`}>{dimension.label}</div>
+                        <div className="text-sm font-semibold" data-testid={`text-compare-value-${dimension.key}-${site.id}`}>{(site as CandidateSite & Record<string, number>)[dimension.key]}</div>
                       </div>
                     ))}
                   </div>

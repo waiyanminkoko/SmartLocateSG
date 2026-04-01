@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "wouter";
-import { FileText, Map as MapIcon, Trash2 } from "lucide-react";
+import { FileText, Map as MapIcon, Pencil, Trash2 } from "lucide-react";
 
 import { AppShell } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
@@ -9,11 +9,11 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { getCandidateSiteDisplayName, mockProfiles, CandidateSite } from "@/lib/mock-data";
 import { openChatbot, setLatestChatbotPayload, type OpenChatbotPayload } from "@/lib/chatbot";
 import { buildPortfolioInsights } from "@/lib/explanation-insights";
-import { fetchJsonWithCache, invalidateApiCache } from "@/lib/api-cache";
+import { fetchJsonWithCache, invalidateApiCache, writeApiCache } from "@/lib/api-cache";
 import { useToast } from "@/hooks/use-toast";
 import { useLocalStorageState } from "@/hooks/use-local-storage";
 import { useAuth } from "@/context/auth-context";
@@ -35,6 +35,9 @@ export default function Portfolio() {
   const [query, setQuery] = useState<string>("");
   const [profileFilter, setProfileFilter] = useState<string>("all");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [renamingSite, setRenamingSite] = useState<CandidateSite | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+  const [renameSubmitting, setRenameSubmitting] = useState(false);
 
   // Auto-filter to active profile when profiles load
   useEffect(() => {
@@ -84,6 +87,7 @@ export default function Portfolio() {
               competition: number | null;
               savedAt: string;
               notes?: string;
+              breakdownDetailsJson?: Record<string, unknown> | null;
               lat?: number | null;
               lng?: number | null;
             }>
@@ -128,6 +132,7 @@ export default function Portfolio() {
           notes: row.notes,
           lat: row.lat ?? undefined,
           lng: row.lng ?? undefined,
+          breakdownDetailsJson: row.breakdownDetailsJson ?? undefined,
         }));
 
         if (!cancelled) {
@@ -225,6 +230,8 @@ export default function Portfolio() {
           profileId: site.profileId,
           siteName: site.name,
           siteAddress: site.address,
+          scoreNotes: site.notes,
+          breakdownDetailsJson: site.breakdownDetailsJson,
         }),
       );
     } else {
@@ -237,6 +244,74 @@ export default function Portfolio() {
       return;
     }
     setLocation("/map");
+  };
+
+  const openRenameDialog = (site: CandidateSite) => {
+    setRenamingSite(site);
+    setRenameValue(getCandidateSiteDisplayName(site));
+  };
+
+  const closeRenameDialog = () => {
+    setRenamingSite(null);
+    setRenameValue("");
+    setRenameSubmitting(false);
+  };
+
+  const renameSite = () => {
+    if (!renamingSite) {
+      return;
+    }
+
+    const nextName = renameValue.trim();
+    if (!nextName) {
+      toast({
+        title: "Name required",
+        description: "Enter a candidate site name before saving.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setRenameSubmitting(true);
+
+    void (async () => {
+      try {
+        const response = await fetch(
+          `/api/sites/${encodeURIComponent(renamingSite.id)}?userId=${encodeURIComponent(userId)}`,
+          {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ name: nextName }),
+          },
+        );
+
+        if (!response.ok) {
+          throw new Error("failed");
+        }
+
+        const updated = (await response.json()) as CandidateSite;
+        setSites((prev) => {
+          const next = prev.map((site) =>
+            site.id === renamingSite.id
+              ? { ...site, name: updated.name, breakdownDetailsJson: updated.breakdownDetailsJson ?? site.breakdownDetailsJson }
+              : site,
+          );
+          writeApiCache(`sites:${userId}`, next, SITES_CACHE_TTL_MS);
+          return next;
+        });
+        toast({ title: "Site name updated", description: `${nextName} is now saved in your portfolio.` });
+        closeRenameDialog();
+      } catch {
+        toast({
+          title: "Failed to update site name",
+          description: "Please try again.",
+          variant: "destructive",
+        });
+        setRenameSubmitting(false);
+      }
+    })();
   };
 
   const toggleSelect = (id: string) => {
@@ -457,6 +532,15 @@ export default function Portfolio() {
                       >
                         <MapIcon className="h-4 w-4" aria-hidden="true" /> View on map
                       </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-2"
+                        onClick={() => openRenameDialog(s)}
+                        data-testid={`button-rename-site-${s.id}`}
+                      >
+                        <Pencil className="h-4 w-4" aria-hidden="true" /> Rename
+                      </Button>
 
                       <Dialog>
                         <DialogTrigger asChild>
@@ -513,6 +597,32 @@ export default function Portfolio() {
           </div>
         )}
       </div>
+      <Dialog open={Boolean(renamingSite)} onOpenChange={(open) => { if (!open) closeRenameDialog(); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle data-testid="text-rename-site-title">Rename candidate site</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="text-sm text-muted-foreground">
+              Update the site name shown across your portfolio, map handoff, and comparison views.
+            </div>
+            <Input
+              value={renameValue}
+              onChange={(event) => setRenameValue(event.target.value)}
+              placeholder="e.g. Tiong Bahru Central_Cafe"
+              data-testid="input-rename-site"
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="secondary" onClick={closeRenameDialog}>
+              Cancel
+            </Button>
+            <Button onClick={renameSite} disabled={renameSubmitting} data-testid="button-save-site-name">
+              {renameSubmitting ? "Saving..." : "Save name"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AppShell>
   );
 }

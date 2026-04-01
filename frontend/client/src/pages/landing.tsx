@@ -284,10 +284,12 @@ function HeroVisual() {
 
       <div className="landing-map-panel lg:absolute lg:bottom-0 lg:left-[132px] lg:w-[334px]">
         <div className="landing-map-grid">
-          <div className="landing-map-marker landing-marker-primary" />
-          <div className="landing-map-marker landing-marker-secondary" />
-          <div className="landing-map-marker landing-marker-accent" />
-          <div className="landing-map-path" />
+          <img
+            src="/landing-map-sample.png"
+            alt="Sample SmartLocate SG map view showing a scored site around Bishan and Toa Payoh"
+            className="landing-map-image"
+            data-testid="image-landing-map-sample"
+          />
         </div>
         <div className="mt-4 rounded-3xl border border-[hsl(var(--card-border)/0.88)] bg-[hsl(var(--card)/0.82)] p-4 shadow-[0_30px_60px_-38px_rgba(15,23,42,0.55)] backdrop-blur-xl">
           <div className="flex items-center gap-2 text-xs uppercase tracking-[0.18em] text-muted-foreground">

@@ -25,6 +25,7 @@ export type CandidateSite = {
   lat?: number;
   lng?: number;
   planningAreaId?: string;
+  breakdownDetailsJson?: Record<string, unknown>;
 };
 
 export function getCandidateSiteDisplayName(

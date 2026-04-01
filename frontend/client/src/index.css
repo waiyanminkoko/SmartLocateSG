@@ -492,13 +492,7 @@
     overflow: hidden;
     border-radius: 2rem;
     border: 1px solid hsl(var(--card-border) / 0.88);
-    background:
-      radial-gradient(circle at 30% 30%, rgba(34, 197, 94, 0.16), transparent 26%),
-      radial-gradient(circle at 74% 38%, rgba(14, 165, 233, 0.16), transparent 24%),
-      linear-gradient(rgba(15, 23, 42, 0.06) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(15, 23, 42, 0.06) 1px, transparent 1px),
-      linear-gradient(180deg, rgba(255, 255, 255, 0.82), rgba(232, 245, 244, 0.88));
-    background-size: auto, auto, 54px 54px, 54px 54px, auto;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.82), rgba(232, 245, 244, 0.88));
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45);
   }
 
@@ -511,41 +505,13 @@
     pointer-events: none;
   }
 
-  .landing-page .landing-map-marker {
-    position: absolute;
-    height: 14px;
-    width: 14px;
-    border-radius: 999px;
-    box-shadow: 0 0 0 7px rgba(255, 255, 255, 0.62), 0 12px 20px -10px rgba(15, 23, 42, 0.55);
-  }
-
-  .landing-page .landing-marker-primary {
-    top: 28%;
-    left: 21%;
-    background: hsl(var(--landing-green));
-  }
-
-  .landing-page .landing-marker-secondary {
-    top: 22%;
-    right: 19%;
-    background: hsl(var(--landing-cyan));
-  }
-
-  .landing-page .landing-marker-accent {
-    bottom: 24%;
-    left: 46%;
-    background: hsl(var(--landing-orange));
-  }
-
-  .landing-page .landing-map-path {
+  .landing-page .landing-map-image {
     position: absolute;
     inset: 0;
-    background:
-      radial-gradient(circle at 23% 33%, rgba(13, 148, 136, 0.12) 0 28px, transparent 30px),
-      radial-gradient(circle at 78% 26%, rgba(14, 165, 233, 0.12) 0 26px, transparent 28px),
-      linear-gradient(122deg, transparent 27%, rgba(15, 23, 42, 0.12) 28%, transparent 29%),
-      linear-gradient(27deg, transparent 42%, rgba(15, 23, 42, 0.12) 43%, transparent 44%);
-    opacity: 0.65;
+    height: 100%;
+    width: 100%;
+    object-fit: cover;
+    object-position: center;
   }
 
   .landing-page .landing-chat-bubble {
