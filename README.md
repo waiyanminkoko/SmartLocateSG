@@ -1,5 +1,9 @@
 # SmartLocate SG
 
+<p align="center">
+	<img src="frontend/client/public/SmartLocateSG_Logo.png" alt="SmartLocate SG Logo" width="100" />
+</p>
+
 SmartLocate SG is a location scoring web application for business site selection in Singapore. It helps users move from gut-feel decisions to evidence-based comparisons by combining map exploration, profile-based scoring, and side-by-side candidate analysis.
 
 The app addresses a common problem in site planning: data for demographics, accessibility, rental pressure, and competition is usually fragmented. SmartLocate SG brings these signals together in one workflow so teams can shortlist locations faster and explain why one site is stronger than another.

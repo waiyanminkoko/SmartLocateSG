@@ -44,6 +44,7 @@ export function AppShell({
 }) {
   const [location] = useLocation();
   const { user, signOut } = useAuth();
+  const brandLogoSrc = "/SmartLocateSG_Logo.png";
 
   return (
     <div className="app-shell">
@@ -51,8 +52,8 @@ export function AppShell({
         <div className="page-container flex items-center justify-between gap-3 py-3">
           <div className="flex items-center gap-3">
             <Link href="/dashboard" className="flex items-center gap-2" data-testid="link-home">
-              <div className="grid size-9 place-items-center rounded-xl border bg-card shadow-sm">
-                <MapPinned className="h-5 w-5" aria-hidden="true" />
+              <div className="grid size-9 place-items-center overflow-hidden rounded-full border bg-card p-1 shadow-sm">
+                <img src={brandLogoSrc} alt="SmartLocate SG logo" className="h-full w-full object-contain" />
               </div>
               <div className="leading-tight">
                 <div className="text-sm font-semibold" data-testid="text-brand">

@@ -311,6 +311,8 @@ function HeroVisual() {
 }
 
 export default function Landing() {
+  const brandLogoSrc = "/SmartLocateSG_Logo.png";
+
   return (
     <div className="landing-page">
       <header
@@ -319,8 +321,8 @@ export default function Landing() {
       >
         <div className="page-container flex items-center justify-between gap-4 py-4">
           <div className="flex items-center gap-3">
-            <div className="grid size-11 place-items-center rounded-2xl border border-[hsl(var(--card-border)/0.9)] bg-[linear-gradient(135deg,hsl(var(--card)),hsl(var(--muted)))] shadow-[0_20px_45px_-28px_rgba(15,23,42,0.55)]">
-              <MapPinned className="h-5 w-5 text-primary" aria-hidden="true" />
+            <div className="grid size-11 place-items-center overflow-hidden rounded-full border border-[hsl(var(--card-border)/0.9)] bg-[linear-gradient(135deg,hsl(var(--card)),hsl(var(--muted)))] p-1.5 shadow-[0_20px_45px_-28px_rgba(15,23,42,0.55)]">
+              <img src={brandLogoSrc} alt="SmartLocate SG logo" className="h-full w-full object-contain" />
             </div>
             <div className="leading-tight">
               <div
@@ -653,7 +655,7 @@ export default function Landing() {
       <footer className="page-container pb-8">
         <div className="flex flex-col gap-3 border-t border-[hsl(var(--border)/0.75)] py-6 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between" data-testid="text-footer">
           <div className="flex items-center gap-2 text-[hsl(var(--foreground)/0.78)]">
-            <MapPinned className="h-4 w-4 text-primary" aria-hidden="true" />
+            <img src={brandLogoSrc} alt="SmartLocate SG logo" className="h-4 w-4 rounded-sm object-contain" />
             <span className="font-medium">SmartLocate SG</span>
           </div>
           <div>Data-driven site selection workspace for businesses evaluating locations in Singapore.</div>
