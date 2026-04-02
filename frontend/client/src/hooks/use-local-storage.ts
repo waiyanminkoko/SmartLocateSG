@@ -1,10 +1,26 @@
 import { useCallback, useState } from "react";
 
+const NON_PERSISTED_LOCAL_KEYS = new Set(["smartlocate:sites"]);
+
+function shouldPersistKey(key: string) {
+  return !NON_PERSISTED_LOCAL_KEYS.has(key);
+}
+
 export function useLocalStorageState<T>(key: string, initialValue: T) {
   const [state, setState] = useState<T>(() => {
     if (typeof window === "undefined") {
       return initialValue;
     }
+
+    if (!shouldPersistKey(key)) {
+      try {
+        window.localStorage.removeItem(key);
+      } catch {
+        // ignore storage errors and keep in-memory state only
+      }
+      return initialValue;
+    }
+
     try {
       const stored = window.localStorage.getItem(key);
       if (stored !== null) {
@@ -20,7 +36,7 @@ export function useLocalStorageState<T>(key: string, initialValue: T) {
     (value: T | ((prev: T) => T)) => {
       setState((prev) => {
         const next = typeof value === "function" ? (value as (p: T) => T)(prev) : value;
-        if (typeof window !== "undefined") {
+        if (typeof window !== "undefined" && shouldPersistKey(key)) {
           try {
             window.localStorage.setItem(key, JSON.stringify(next));
           } catch {

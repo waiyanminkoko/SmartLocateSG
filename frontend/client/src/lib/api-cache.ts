@@ -12,12 +12,26 @@ type FetchJsonWithCacheOptions = {
 const CACHE_PREFIX = "smartlocate:api-cache:";
 const inFlight = new Map<string, Promise<unknown>>();
 
+function shouldPersistCacheKey(cacheKey: string) {
+  // Keep candidate-site payloads out of browser localStorage.
+  return !cacheKey.startsWith("sites:");
+}
+
 function toStorageKey(cacheKey: string) {
   return `${CACHE_PREFIX}${cacheKey}`;
 }
 
 export function readApiCache<T>(cacheKey: string): ApiCacheEntry<T> | null {
   if (typeof window === "undefined") {
+    return null;
+  }
+
+  if (!shouldPersistCacheKey(cacheKey)) {
+    try {
+      window.localStorage.removeItem(toStorageKey(cacheKey));
+    } catch {
+      // Ignore storage errors.
+    }
     return null;
   }
 
@@ -34,6 +48,15 @@ export function readApiCache<T>(cacheKey: string): ApiCacheEntry<T> | null {
 
 export function writeApiCache<T>(cacheKey: string, data: T, ttlMs: number) {
   if (typeof window === "undefined") {
+    return;
+  }
+
+  if (!shouldPersistCacheKey(cacheKey)) {
+    try {
+      window.localStorage.removeItem(toStorageKey(cacheKey));
+    } catch {
+      // Ignore storage errors.
+    }
     return;
   }
 

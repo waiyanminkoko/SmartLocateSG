@@ -899,7 +899,7 @@ export async function registerRoutes(
       if (e instanceof z.ZodError) {
         return res.status(400).json({ error: e.flatten() });
       }
-
+      console.error("[api/sites][POST]", e);
       res.status(500).json({ error: "Failed to save candidate site." });
     }
   });
