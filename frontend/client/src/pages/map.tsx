@@ -143,6 +143,14 @@ type SiteScoreResponse = {
   };
 };
 
+type ReverseGeocodeApiResponse = {
+  lat: number;
+  lng: number;
+  formattedAddress: string;
+  postalCode: string | null;
+  provider: "google" | "onemap" | "fallback";
+};
+
 const focusRadiusOptions = [500, 750, 1000, 1500, 2000] as const;
 
 const overlayMetricMap: Record<Overlay, OverlayMetricKey> = {
@@ -208,6 +216,33 @@ function formatRadiusLabel(radiusMeters: number) {
 
 function formatLatLng(lat: number, lng: number) {
   return `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+}
+
+function formatCoordinateAddress(lat: number, lng: number) {
+  return `Singapore (${formatLatLng(lat, lng)})`;
+}
+
+function sanitizePostalCode(value: unknown) {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  const match = trimmed.match(/\b\d{6}\b/);
+  return match ? match[0] : null;
+}
+
+function extractPostalCodeFromGoogleResult(result: any): string | null {
+  const components = Array.isArray(result?.address_components) ? result.address_components : [];
+  const postal = components.find((component: any) =>
+    Array.isArray(component?.types) && component.types.includes("postal_code"),
+  );
+
+  return sanitizePostalCode(postal?.long_name ?? postal?.short_name ?? result?.formatted_address);
 }
 
 function haversineDistanceMeters(lat1: number, lng1: number, lat2: number, lng2: number) {
@@ -562,6 +597,7 @@ export default function MapPage() {
   const mapStyleId = import.meta.env.VITE_GOOGLE_MAPS_MAP_ID as string | undefined;
   const [selectedLatLng, setSelectedLatLng] = useState<{ lat: number; lng: number } | null>(null);
   const [selectedAddress, setSelectedAddress] = useState<string | null>(null);
+  const [selectedPostalCode, setSelectedPostalCode] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [searching, setSearching] = useState(false);
   const [focusRadiusMeters, setFocusRadiusMeters] = useState<number>(1000);
@@ -572,6 +608,7 @@ export default function MapPage() {
     profileId?: string;
     siteName?: string;
     siteAddress?: string;
+    postalCode?: string;
     scoreNotes?: string;
     breakdownDetailsJson?: Record<string, unknown>;
   } | null>(null);
@@ -1036,6 +1073,7 @@ export default function MapPage() {
     lat: number;
     lng: number;
     siteName?: string;
+    postalCode?: string;
     scoreNotes?: string;
     breakdownDetailsJson?: Record<string, unknown>;
   }) => {
@@ -1062,6 +1100,7 @@ export default function MapPage() {
     const scenarioName = toOptionalString(snapshot.scenario);
     const savedWeights = toSavedWeights(snapshot.weights);
     const rawBreakdown = asRecord(snapshot.rawBreakdown);
+    const location = asRecord(snapshot.location);
     const planningArea = asRecord(snapshot.planningArea);
     const scoresRecord = asRecord(snapshot.scores);
 
@@ -1088,6 +1127,13 @@ export default function MapPage() {
     const analysisRadiusMeters = toOptionalNumber(rawBreakdown?.analysisRadiusMeters);
     if (analysisRadiusMeters) {
       setFocusRadiusMeters(analysisRadiusMeters);
+    }
+
+    const snapshotPostalCode =
+      sanitizePostalCode(toOptionalString(location?.postalCode)) ??
+      sanitizePostalCode(selection.postalCode);
+    if (snapshotPostalCode) {
+      setSelectedPostalCode(snapshotPostalCode);
     }
 
     const restoredSiteScore: SiteScoreResponse = {
@@ -1437,6 +1483,7 @@ export default function MapPage() {
     profileId?: string;
     siteName?: string;
     siteAddress?: string;
+    postalCode?: string;
     scoreNotes?: string;
     breakdownDetailsJson?: Record<string, unknown>;
   }) => {
@@ -1445,37 +1492,77 @@ export default function MapPage() {
     mapRef.current.setCenter(loc);
     mapRef.current.setZoom(16);
     setSelectedLatLng(loc);
-    const fallback = selection.siteAddress ?? selection.siteName ?? `Lat ${formatLatLng(loc.lat, loc.lng)}`;
+    const fallback = selection.siteAddress ?? selection.siteName ?? formatCoordinateAddress(loc.lat, loc.lng);
     setSelectedAddress(fallback);
+    setSelectedPostalCode(sanitizePostalCode(selection.postalCode));
     setSearchQuery(fallback);
     setSelectedTransportFeature(null);
     setPin(loc);
-    reverseGeocode(loc.lat, loc.lng);
+    void resolveSelectionAddress(loc.lat, loc.lng, {
+      fallbackAddress: fallback,
+      fallbackPostalCode: sanitizePostalCode(selection.postalCode),
+    });
     if (selection.profileId && profiles.some((p) => p.id === selection.profileId)) {
       handleProfileChange(selection.profileId);
     }
     restoreSavedSiteDetails(selection);
   };
 
-  const reverseGeocode = (lat: number, lng: number) => {
-    const googleMaps = googleRef.current;
-    if (!googleMaps?.maps) {
-      setSelectedAddress(`Lat ${formatLatLng(lat, lng)}`);
-      return;
-    }
+  const resolveSelectionAddress = async (
+    lat: number,
+    lng: number,
+    options?: {
+      fallbackAddress?: string;
+      fallbackPostalCode?: string | null;
+      updateSearchQuery?: boolean;
+    },
+  ) => {
+    const fallbackAddress = options?.fallbackAddress ?? formatCoordinateAddress(lat, lng);
+    const fallbackPostalCode = options?.fallbackPostalCode ?? null;
 
-    const geocoder = new googleMaps.maps.Geocoder();
-    geocoder.geocode({ location: { lat, lng } }, (results: any, status: string) => {
-      if (status === "OK" && results?.length) {
-        const address = results[0]?.formatted_address;
-        if (address) {
-          setSelectedAddress(address);
-          setSearchQuery(address);
-          return;
-        }
+    try {
+      const response = await fetch("/api/map/reverse-geocode", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ lat, lng }),
+      });
+
+      if (!response.ok) {
+        throw new Error("failed");
       }
-      setSelectedAddress(`Lat ${formatLatLng(lat, lng)}`);
-    });
+
+      const data = (await response.json()) as ReverseGeocodeApiResponse;
+      const address = (data.formattedAddress || fallbackAddress).trim();
+      const postalCode = sanitizePostalCode(data.postalCode) ?? fallbackPostalCode;
+
+      console.log("[map][reverse-geocode][resolved]", {
+        provider: data.provider,
+        lat,
+        lng,
+        formattedAddress: address,
+        postalCode,
+      });
+
+      setSelectedAddress(address);
+      setSelectedPostalCode(postalCode);
+      if (options?.updateSearchQuery !== false) {
+        setSearchQuery(address);
+      }
+    } catch {
+      console.log("[map][reverse-geocode][fallback]", {
+        lat,
+        lng,
+        formattedAddress: fallbackAddress,
+        postalCode: fallbackPostalCode,
+      });
+      setSelectedAddress(fallbackAddress);
+      setSelectedPostalCode(fallbackPostalCode);
+      if (options?.updateSearchQuery !== false) {
+        setSearchQuery(fallbackAddress);
+      }
+    }
   };
 
   const runSearch = async () => {
@@ -1524,12 +1611,19 @@ export default function MapPage() {
       clearRestoredSiteDetails();
       setRestoredSiteName(null);
       setSelectedLatLng({ lat: loc.lat, lng: loc.lng });
-      setSelectedAddress(result.formatted_address ?? address);
       setPin(loc);
-      setSearchQuery(result.formatted_address ?? query);
+      const fallbackAddress = result.formatted_address ?? address;
+      const fallbackPostalCode = extractPostalCodeFromGoogleResult(result);
+      setSelectedAddress(fallbackAddress);
+      setSelectedPostalCode(fallbackPostalCode);
+      setSearchQuery(fallbackAddress);
+      await resolveSelectionAddress(loc.lat, loc.lng, {
+        fallbackAddress,
+        fallbackPostalCode,
+      });
       toast({
         title: "Location found",
-        description: result.formatted_address ?? address,
+        description: fallbackAddress,
       });
     } catch {
       toast({
@@ -1581,6 +1675,7 @@ export default function MapPage() {
       id: createId(),
       name: resolvedSiteName,
       address: selectedLocationText,
+      postalCode: selectedPostalCode ?? undefined,
       composite,
       demographic: scoreValues.demographic,
       accessibility: scoreValues.accessibility,
@@ -1603,6 +1698,7 @@ export default function MapPage() {
       items: displayedExplanationItems,
       location: {
         address: hasSelectedSite ? selectedLocationText : undefined,
+        postalCode: selectedPostalCode,
         lat: selectedLatLng.lat,
         lng: selectedLatLng.lng,
       },
@@ -1636,6 +1732,7 @@ export default function MapPage() {
             profileId: activeProfile.id,
             name: newSite.name,
             address: newSite.address,
+            postalCode: newSite.postalCode ?? undefined,
             lat: newSite.lat,
             lng: newSite.lng,
             planningAreaId: newSite.planningAreaId ?? undefined,
@@ -1902,6 +1999,7 @@ export default function MapPage() {
         profileId?: string;
         siteName?: string;
         siteAddress?: string;
+        postalCode?: string;
         scoreNotes?: string;
         breakdownDetailsJson?: Record<string, unknown>;
       };
@@ -2323,7 +2421,8 @@ export default function MapPage() {
           clearRestoredSiteDetails();
           setRestoredSiteName(null);
           setSelectedLatLng({ lat, lng });
-          reverseGeocode(lat, lng);
+          setSelectedPostalCode(null);
+          void resolveSelectionAddress(lat, lng);
           setPin(event.latLng);
           setIsDropPinMode(false);
           toast({
@@ -2392,7 +2491,7 @@ export default function MapPage() {
 
         if (searchInputRef.current && !autocompleteRef.current) {
           const autocomplete = new googleMaps.maps.places.Autocomplete(searchInputRef.current, {
-            fields: ["geometry", "formatted_address", "name"],
+            fields: ["address_components", "geometry", "formatted_address", "name"],
             componentRestrictions: { country: "sg" },
           });
           autocomplete.bindTo("bounds", map);
@@ -2415,10 +2514,20 @@ export default function MapPage() {
             clearRestoredSiteDetails();
             setRestoredSiteName(null);
             setSelectedLatLng({ lat, lng });
-            const address = place.formatted_address || place.name || `Lat ${formatLatLng(lat, lng)}`;
+            const address = place.formatted_address || place.name || formatCoordinateAddress(lat, lng);
             setSelectedAddress(address);
+            const placePostalCode = sanitizePostalCode(
+              place.address_components?.find((component: any) =>
+                Array.isArray(component?.types) && component.types.includes("postal_code"),
+              )?.long_name,
+            );
+            setSelectedPostalCode(placePostalCode);
             setSearchQuery(address);
             setPin(location);
+            void resolveSelectionAddress(lat, lng, {
+              fallbackAddress: address,
+              fallbackPostalCode: placePostalCode,
+            });
           });
           autocompleteRef.current = autocomplete;
         }
@@ -2905,6 +3014,7 @@ export default function MapPage() {
                   setRestoredSiteName(null);
                   setSelectedLatLng(null);
                   setSelectedAddress(null);
+                  setSelectedPostalCode(null);
                   setSelectedArea(null);
                   setSelectedTransportFeature(null);
                   setSiteScore(null);

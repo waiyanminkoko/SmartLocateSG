@@ -7,6 +7,7 @@ import {
   getPointLayerCollection,
   scoreSiteLocation,
 } from "./map-data";
+import { reverseGeocodeWithFallback } from "./geocode";
 
 type ExplanationItem = {
   label: string;
@@ -68,6 +69,11 @@ const siteScoreSchema = z.object({
   lng: z.number().finite(),
   profileId: z.string().min(1).optional(),
   radiusMeters: z.number().int().min(500).max(2000).optional().default(1000),
+});
+
+const reverseGeocodeSchema = z.object({
+  lat: z.number().finite(),
+  lng: z.number().finite(),
 });
 
 const mapLayerQuerySchema = z
@@ -878,6 +884,21 @@ export async function registerRoutes(
 
       console.error("[api/map/site-score][POST]", error);
       res.status(500).json({ error: "Failed to score site." });
+    }
+  });
+
+  app.post("/api/map/reverse-geocode", async (req, res) => {
+    try {
+      const payload = reverseGeocodeSchema.parse(req.body);
+      const result = await reverseGeocodeWithFallback(payload.lat, payload.lng);
+      res.json(result);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.flatten() });
+      }
+
+      console.error("[api/map/reverse-geocode][POST]", error);
+      res.status(500).json({ error: "Failed to reverse geocode location." });
     }
   });
 

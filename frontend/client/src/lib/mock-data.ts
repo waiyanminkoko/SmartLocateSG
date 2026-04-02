@@ -14,6 +14,7 @@ export type CandidateSite = {
   id: string;
   name: string;
   address: string;
+  postalCode?: string;
   composite: number;
   demographic: number;
   accessibility: number;
