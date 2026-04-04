@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Download, X } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { jsPDF } from "jspdf";
@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ChartContainer, ChartLegend, ChartLegendContent, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { fetchJsonWithCache } from "@/lib/api-cache";
 import { getCandidateSiteDisplayName, mockProfiles, type BusinessProfile, type CandidateSite } from "@/lib/mock-data";
 import { openChatbot, setLatestChatbotPayload, type OpenChatbotPayload } from "@/lib/chatbot";
@@ -19,6 +20,29 @@ import { useAuth } from "@/context/auth-context";
 const PROFILES_CACHE_TTL_MS = 2 * 60 * 1000;
 const SITES_CACHE_TTL_MS = 60 * 1000;
 
+function splitTickLabel(value: string) {
+  const words = value.split(" ").filter(Boolean);
+  if (words.length <= 1) {
+    return [value, ""];
+  }
+
+  const midpoint = Math.ceil(words.length / 2);
+  return [words.slice(0, midpoint).join(" "), words.slice(midpoint).join(" ")];
+}
+
+function renderMetricTick(props: any) {
+  const { x, y, payload } = props;
+  const label = String(payload?.value ?? "");
+  const [line1, line2] = splitTickLabel(label);
+
+  return (
+    <text x={x} y={y} textAnchor="middle" fill="currentColor" className="text-[11px] text-muted-foreground">
+      <tspan x={x} dy="0.9em">{line1}</tspan>
+      {line2 ? <tspan x={x} dy="1.1em">{line2}</tspan> : null}
+    </text>
+  );
+}
+
 export default function Compare() {
   const { toast } = useToast();
   const { user, loading: authLoading } = useAuth();
@@ -26,6 +50,12 @@ export default function Compare() {
   const [sites, setSites] = useLocalStorageState<CandidateSite[]>("smartlocate:sites", []);
   const [profiles, setProfiles] = useLocalStorageState<BusinessProfile[]>("smartlocate:profiles", mockProfiles);
   const [exporting, setExporting] = useState(false);
+  const [profileFilter, setProfileFilter] = useState<string>("all");
+  const [selectionByFilter, setSelectionByFilter] = useLocalStorageState<Record<string, string[]>>(
+    "compare:selected-by-filter",
+    {},
+  );
+  const hasAppliedDefaultFilter = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -140,43 +170,53 @@ export default function Compare() {
   }, [authLoading, setProfiles, setSites, toast, userId]);
 
   const activeProfile = useMemo(() => profiles.find((profile) => profile.active) ?? null, [profiles]);
-  const availableSites = sites;
 
-  const [selected, setSelected] = useState<string[]>(() => {
-    if (typeof window === "undefined") {
-      return [sites[0]?.id, sites[1]?.id].filter(Boolean) as string[];
+  useEffect(() => {
+    if (hasAppliedDefaultFilter.current) {
+      return;
     }
 
-    const saved = localStorage.getItem("compare:selected");
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved) as string[];
-        if (Array.isArray(parsed) && parsed.length >= 1) {
-          return parsed.filter(Boolean);
-        }
-      } catch {
-        return [sites[0]?.id, sites[1]?.id].filter(Boolean) as string[];
-      }
+    if (authLoading) {
+      return;
     }
 
-    return [sites[0]?.id, sites[1]?.id].filter(Boolean) as string[];
-  });
+    setProfileFilter(activeProfile?.id ?? "all");
+    hasAppliedDefaultFilter.current = true;
+  }, [activeProfile?.id, authLoading]);
+
+  const filteredSites = useMemo(() => {
+    if (profileFilter === "all") {
+      return sites;
+    }
+
+    return sites.filter((site) => site.profileId === profileFilter);
+  }, [profileFilter, sites]);
+
+  const availableSites = filteredSites;
+
+  const [selected, setSelected] = useState<string[]>([]);
 
   useEffect(() => {
     const allowedIds = new Set(availableSites.map((site) => site.id));
     const defaultIds = availableSites.slice(0, 2).map((site) => site.id);
+    const remembered = (selectionByFilter[profileFilter] ?? []).filter((id) => allowedIds.has(id));
+    const next = remembered.length > 0 ? remembered.slice(0, 3) : defaultIds;
 
     setSelected((prev) => {
-      const filtered = prev.filter((id) => allowedIds.has(id));
-      const next = filtered.length > 0 ? filtered : defaultIds;
-
       if (next.length === prev.length && next.every((id, index) => id === prev[index])) {
         return prev;
       }
-
       return next;
     });
-  }, [availableSites]);
+
+    setSelectionByFilter((prev) => {
+      const current = prev[profileFilter] ?? [];
+      if (current.length === next.length && current.every((id, index) => id === next[index])) {
+        return prev;
+      }
+      return { ...prev, [profileFilter]: next };
+    });
+  }, [availableSites, profileFilter, selectionByFilter, setSelectionByFilter]);
 
   useEffect(() => {
     localStorage.setItem("compare:selected", JSON.stringify(selected));
@@ -210,20 +250,28 @@ export default function Compare() {
 
   const toggle = (id: string) => {
     setSelected((prev) => {
+      let next: string[];
       if (prev.includes(id)) {
-        return prev.filter((entry) => entry !== id);
+        next = prev.filter((entry) => entry !== id);
+      } else {
+        if (prev.length >= 3) {
+          toast({
+            title: "Max 3 sites",
+            description: "You can compare up to 3 sites.",
+            variant: "destructive",
+          });
+          return prev;
+        }
+
+        next = [...prev, id];
       }
 
-      if (prev.length >= 3) {
-        toast({
-          title: "Max 3 sites",
-          description: "You can compare up to 3 sites.",
-          variant: "destructive",
-        });
-        return prev;
-      }
+      setSelectionByFilter((saved) => ({
+        ...saved,
+        [profileFilter]: next,
+      }));
 
-      return [...prev, id];
+      return next;
     });
   };
 
@@ -557,10 +605,36 @@ export default function Compare() {
         </div>
 
         <Card className="border bg-card p-5 shadow-sm">
-          <div className="text-sm font-semibold" data-testid="text-compare-select-title">Select sites</div>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <div className="text-sm font-semibold" data-testid="text-compare-select-title">Select sites</div>
+              <div className="mt-1 text-xs text-muted-foreground">Filter by profile before choosing up to 3 sites.</div>
+            </div>
+            <div className="w-full sm:w-[260px]">
+              <Select value={profileFilter} onValueChange={setProfileFilter}>
+                <SelectTrigger data-testid="select-profile-filter">
+                  <SelectValue placeholder="Filter profiles" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all" data-testid="select-item-profile-filter-all">
+                    All profiles
+                  </SelectItem>
+                  {profiles.map((profile) => (
+                    <SelectItem
+                      key={profile.id}
+                      value={profile.id}
+                      data-testid={`select-item-profile-filter-${profile.id}`}
+                    >
+                      {profile.name}{profile.active ? " (Active)" : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
           {availableSites.length === 0 ? (
             <div className="mt-3 rounded-xl border bg-muted/30 p-3 text-sm text-muted-foreground" data-testid="status-no-sites-for-profile">
-              No saved candidate sites are available yet.
+              No saved candidate sites for the selected profile filter.
             </div>
           ) : null}
           <div className="mt-3 grid gap-2 md:grid-cols-3">
@@ -628,8 +702,8 @@ export default function Compare() {
                 </Button>
               </div>
               <div className="mt-4">
-                <ChartContainer className="h-72" config={chartConfig}>
-                  <BarChart data={chartData} margin={{ left: 0, right: 16, top: 8, bottom: 8 }}>
+                <ChartContainer className="h-80" config={chartConfig}>
+                  <BarChart data={chartData} margin={{ left: 0, right: 16, top: 8, bottom: 32 }}>
                     <CartesianGrid vertical={false} />
                     <XAxis
                       dataKey="metric"
@@ -637,6 +711,8 @@ export default function Compare() {
                       axisLine={false}
                       interval={0}
                       tickMargin={8}
+                      tick={renderMetricTick}
+                      height={52}
                     />
                     <YAxis domain={[0, 100]} tickLine={false} axisLine={false} tickMargin={8} />
                     <ChartTooltip content={<ChartTooltipContent />} />
