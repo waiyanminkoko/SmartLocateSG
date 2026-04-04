@@ -95,7 +95,8 @@ type SaveCandidateSiteInput = {
 };
 
 type UpdateCandidateSiteInput = {
-  name: string;
+  name?: string;
+  notes?: string;
 };
 
 type BusinessProfileRecord = {
@@ -985,12 +986,22 @@ export class DatabaseStorage implements IStorage {
     userId: string,
     input: UpdateCandidateSiteInput,
   ): Promise<CandidateSiteRecord | null> {
+    const updates: Record<string, unknown> = {};
+    if (typeof input.name === "string") {
+      updates.site_name = input.name;
+    }
+    if (typeof input.notes === "string") {
+      updates.notes = input.notes;
+    }
+
+    if (Object.keys(updates).length === 0) {
+      return null;
+    }
+
     const supabase = this.requireSupabaseClient();
     const { data: updatedSite, error: siteError } = await supabase
       .from("candidate_sites")
-      .update({
-        site_name: input.name,
-      })
+      .update(updates)
       .eq("id", siteId)
       .eq("user_id", userId)
       .select("*")
@@ -1553,11 +1564,21 @@ export class DatabaseStorage implements IStorage {
       return this.updateCandidateSiteViaSupabase(siteId, userId, input);
     }
 
+    const updates: Partial<typeof candidateSites.$inferInsert> = {};
+    if (typeof input.name === "string") {
+      updates.siteName = input.name;
+    }
+    if (typeof input.notes === "string") {
+      updates.notes = input.notes;
+    }
+
+    if (Object.keys(updates).length === 0) {
+      return null;
+    }
+
     const [updatedSite] = await db
       .update(candidateSites)
-      .set({
-        siteName: input.name,
-      })
+      .set(updates)
       .where(and(eq(candidateSites.id, siteId), eq(candidateSites.userId, userId)))
       .returning();
 

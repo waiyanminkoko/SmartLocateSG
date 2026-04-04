@@ -38,9 +38,14 @@ const deleteSiteQuerySchema = z.object({
   userId: z.string().min(1, "userId is required"),
 });
 
-const updateSiteSchema = z.object({
-  name: z.string().min(1, "name is required"),
-});
+const updateSiteSchema = z
+  .object({
+    name: z.string().min(1, "name is required").optional(),
+    notes: z.string().optional(),
+  })
+  .refine((value) => value.name !== undefined || value.notes !== undefined, {
+    message: "At least one of name or notes is required",
+  });
 
 const createProfileSchema = z.object({
   userId: z.string().min(1, "userId is required"),
