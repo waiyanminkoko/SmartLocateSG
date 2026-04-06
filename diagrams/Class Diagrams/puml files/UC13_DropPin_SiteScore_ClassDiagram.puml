@@ -1,0 +1,185 @@
+@startuml UC13_DropPin_SiteScore_ClassDiagram
+title SmartLocate SG — UC-13 Drop POI Pin and Get Site Score (Class Diagram)
+
+skinparam classAttributeIconSize 0
+skinparam nodesep 40
+skinparam ranksep 60
+skinparam padding 5
+skinparam roundcorner 5
+skinparam defaultFontSize 10
+
+package "Boundary" #FFDDDD {
+    class MapPage <<boundary>> {
+        - selectedLatLng : LatLng?
+        - activeProfileId : number?
+        - focusRadiusMeters : number
+        --
+        + handleMapClick(lat: number, lng: number) : void
+        + requestSiteScore() : Promise<void>
+        + renderScoreBreakdown(score: SiteScoreResult) : void
+        + showScoreError(message: string) : void
+    }
+
+    class MapAPI <<boundary>> {
+        + postSiteScore(payload: SiteScoreRequest) : Promise<SiteScoreResult>
+    }
+}
+
+package "Control" #DDFFDD {
+    class MapController <<control>> {
+        + postSiteScore(request: HttpRequest) : HttpResponse
+        + validateSiteScorePayload(payload: SiteScoreRequest) : ValidationResult
+    }
+
+    class ScoreService <<control>> {
+        + scoreSiteLocation(input: SiteScoreRequest) : SiteScoreResult
+        - scoreViaPrimaryDb(input: SiteScoreRequest) : SiteScoreResult
+        - scoreViaSupabaseFallback(input: SiteScoreRequest) : SiteScoreResult
+    }
+
+    class ScoreEngine <<control>> {
+        + computeComposite(scores: DimensionScores) : number
+        + computeDemographicScore(metrics: PlanningAreaMetrics) : number
+        + computeAccessibilityScore(transport: TransportMetrics) : number
+        + computeRentalScore(metrics: PlanningAreaMetrics) : number
+        + computeCompetitionScore(metrics: CompetitionMetrics) : number
+    }
+}
+
+package "Persistence" #EFEFEF {
+    class PlanningAreaRepository <<repository>> {
+        + findContainingArea(lat: number, lng: number) : PlanningArea?
+        + getPlanningAreaMetrics(areaId: string) : PlanningAreaMetrics
+    }
+
+    class TransportRepository <<repository>> {
+        + countNearbyBusStops(lat: number, lng: number, radiusMeters: number) : int
+        + countNearbyMrtExits(lat: number, lng: number, radiusMeters: number) : int
+    }
+
+    class CompetitionRepository <<repository>> {
+        + countNearbyCompetitors(lat: number, lng: number, radiusMeters: number, category: string) : int
+    }
+
+    class BusinessProfileRepository <<repository>> {
+        + getBusinessProfile(profileId: number) : BusinessProfile?
+        + resolveCompetitionCategory(profile: BusinessProfile) : string
+    }
+}
+
+package "Entity" #DDDDFF {
+    class SiteScoreRequest <<entity>> {
+        + lat : number
+        + lng : number
+        + profileId : number?
+        + radiusMeters : number
+    }
+
+    class SiteScoreResult <<entity>> {
+        + lat : number
+        + lng : number
+        + planningArea : PlanningArea?
+        + scores : DimensionScores
+        + breakdownDetails : BreakdownDetails
+        + dataFreshness : string
+    }
+
+    class DimensionScores <<entity>> {
+        + composite : number
+        + demographic : number
+        + accessibility : number
+        + rental : number
+        + competition : number
+    }
+
+    class BreakdownDetails <<entity>> {
+        + analysisRadiusMeters : int
+        + busStopsWithinRadius : int
+        + mrtExitsWithinRadius : int
+        + competitionCountWithinRadius : int
+    }
+
+    class PlanningArea <<entity>> {
+        + planningAreaId : string
+        + planningAreaName : string
+        + areaCode : string
+        + regionName : string
+    }
+
+    class PlanningAreaMetrics <<entity>> {
+        + demographicScore : number
+        + vacancyScore : number
+        + rentalMedianPsf : number?
+    }
+
+    class TransportMetrics <<entity>> {
+        + busStopCount : int
+        + mrtExitCount : int
+    }
+
+    class CompetitionMetrics <<entity>> {
+        + category : string
+        + nearbyCount : int
+    }
+
+    class BusinessProfile <<entity>> {
+        + profileId : number
+        + sectorCode : string
+        + operatingModel : string
+        + activeWeightConfigId : number?
+    }
+
+    class ValidationResult <<value object>> {
+        + isValid : bool
+        + errors : string[]
+    }
+}
+
+package "External Services" #FFFACD {
+    class PostgresDatabase <<external>> {
+        + query(sql: string, params: object[]) : ResultSet
+    }
+
+    class SupabaseClient <<external>> {
+        + from(table: string) : QueryBuilder
+        + rpc(functionName: string, payload: object) : object
+    }
+}
+
+MapPage ..> MapAPI : calls
+MapAPI ..> MapController : HTTP POST /api/map/site-score
+MapController --> ScoreService : delegates
+MapController ..> ValidationResult : validates payload
+
+ScoreService --> ScoreEngine : computes scores
+ScoreService --> PlanningAreaRepository : retrieves area + metrics
+ScoreService --> TransportRepository : retrieves nearby transport
+ScoreService --> CompetitionRepository : retrieves competitor counts
+ScoreService --> BusinessProfileRepository : resolves category
+ScoreService ..> SiteScoreRequest : uses input
+ScoreService ..> SiteScoreResult : returns response
+
+PlanningAreaRepository ..> PostgresDatabase : SQL query
+TransportRepository ..> PostgresDatabase : SQL query
+CompetitionRepository ..> PostgresDatabase : SQL query
+BusinessProfileRepository ..> PostgresDatabase : SQL query
+ScoreService ..> SupabaseClient : fallback path
+
+SiteScoreResult *-- DimensionScores
+SiteScoreResult *-- BreakdownDetails
+SiteScoreResult o-- PlanningArea
+ScoreEngine ..> PlanningAreaMetrics : uses
+ScoreEngine ..> TransportMetrics : uses
+ScoreEngine ..> CompetitionMetrics : uses
+
+note right of ScoreService
+UC-13 traceability path:
+1) user drops pin in MapPage
+2) MapAPI posts SiteScoreRequest
+3) MapController validates + delegates
+4) ScoreService orchestrates repositories
+5) ScoreEngine computes dimension scores
+6) SiteScoreResult returned to UI
+end note
+
+@enduml
