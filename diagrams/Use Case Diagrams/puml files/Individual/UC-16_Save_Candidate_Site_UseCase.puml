@@ -1,4 +1,4 @@
-﻿@startuml UC_16_Individual
+﻿@startuml
 left to right direction
 !theme plain
 skinparam backgroundColor #FEFEFE
