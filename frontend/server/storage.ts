@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { createClient } from "@supabase/supabase-js";
 import * as sharedSchemaNs from "../../shared/schema";
 //import type { InsertUser, User } from "../../shared/schema";
@@ -22,6 +22,7 @@ const {
   dbInsertBusinessProfileSchema,
   dbInsertCandidateSiteSchema,
   dbInsertUserSchema,
+  planningAreas,
   siteScores,
   users,
 } = sharedSchema;
@@ -94,7 +95,8 @@ type SaveCandidateSiteInput = {
 };
 
 type UpdateCandidateSiteInput = {
-  name: string;
+  name?: string;
+  notes?: string;
 };
 
 type BusinessProfileRecord = {
@@ -822,9 +824,117 @@ export class DatabaseStorage implements IStorage {
     );
   }
 
+  private normalizePlanningAreaToken(value: string): string {
+    return value.trim().toUpperCase().replace(/[^A-Z0-9]+/g, "_");
+  }
+
+  private async resolvePlanningAreaIdViaSupabase(planningAreaValue?: string): Promise<string | null> {
+    if (!planningAreaValue) {
+      return null;
+    }
+
+    const raw = planningAreaValue.trim();
+    if (!raw) {
+      return null;
+    }
+
+    const supabase = this.requireSupabaseClient();
+    const normalized = this.normalizePlanningAreaToken(raw);
+
+    const { data: byId, error: byIdError } = await supabase
+      .from("planning_areas")
+      .select("id")
+      .eq("id", raw)
+      .maybeSingle();
+
+    if (byIdError) {
+      throw byIdError;
+    }
+
+    if (byId?.id) {
+      return byId.id as string;
+    }
+
+    const codeCandidates = Array.from(new Set([raw, normalized].filter((value) => value.length > 0)));
+    if (codeCandidates.length > 0) {
+      const { data: byCode, error: byCodeError } = await supabase
+        .from("planning_areas")
+        .select("id")
+        .in("area_code", codeCandidates)
+        .limit(1)
+        .maybeSingle();
+
+      if (byCodeError) {
+        throw byCodeError;
+      }
+
+      if (byCode?.id) {
+        return byCode.id as string;
+      }
+    }
+
+    const { data: byName, error: byNameError } = await supabase
+      .from("planning_areas")
+      .select("id")
+      .ilike("area_name", raw)
+      .limit(1)
+      .maybeSingle();
+
+    if (byNameError) {
+      throw byNameError;
+    }
+
+    return byName?.id ? (byName.id as string) : null;
+  }
+
+  private async resolvePlanningAreaIdViaDb(planningAreaValue?: string): Promise<string | null> {
+    if (!planningAreaValue) {
+      return null;
+    }
+
+    const raw = planningAreaValue.trim();
+    if (!raw) {
+      return null;
+    }
+
+    const normalized = this.normalizePlanningAreaToken(raw);
+
+    const [byId] = await db
+      .select({ id: planningAreas.id })
+      .from(planningAreas)
+      .where(eq(planningAreas.id, raw))
+      .limit(1);
+
+    if (byId?.id) {
+      return byId.id;
+    }
+
+    const codeCandidates = Array.from(new Set([raw, normalized].filter((value) => value.length > 0)));
+    if (codeCandidates.length > 0) {
+      const [byCode] = await db
+        .select({ id: planningAreas.id })
+        .from(planningAreas)
+        .where(inArray(planningAreas.areaCode, codeCandidates))
+        .limit(1);
+
+      if (byCode?.id) {
+        return byCode.id;
+      }
+    }
+
+    const [byName] = await db
+      .select({ id: planningAreas.id })
+      .from(planningAreas)
+      .where(sql`lower(${planningAreas.areaName}) = lower(${raw})`)
+      .limit(1);
+
+    return byName?.id ?? null;
+  }
+
   private async saveCandidateSiteViaSupabase(siteData: SaveCandidateSiteInput): Promise<CandidateSiteRecord> {
     const supabase = this.requireSupabaseClient();
     await this.ensureUserExistsViaSupabase(siteData.userId);
+    const resolvedPlanningAreaId = await this.resolvePlanningAreaIdViaSupabase(siteData.planningAreaId);
 
     const { data: insertedScore, error: scoreError } = await supabase
       .from("site_scores")
@@ -856,7 +966,7 @@ export class DatabaseStorage implements IStorage {
         postal_code: siteData.postalCode ?? null,
         lat: siteData.lat ?? null,
         lng: siteData.lng ?? null,
-        planning_area_id: siteData.planningAreaId ?? null,
+        planning_area_id: resolvedPlanningAreaId,
         saved_site_score_id: score.id,
         notes: siteData.notes,
       })
@@ -876,12 +986,22 @@ export class DatabaseStorage implements IStorage {
     userId: string,
     input: UpdateCandidateSiteInput,
   ): Promise<CandidateSiteRecord | null> {
+    const updates: Record<string, unknown> = {};
+    if (typeof input.name === "string") {
+      updates.site_name = input.name;
+    }
+    if (typeof input.notes === "string") {
+      updates.notes = input.notes;
+    }
+
+    if (Object.keys(updates).length === 0) {
+      return null;
+    }
+
     const supabase = this.requireSupabaseClient();
     const { data: updatedSite, error: siteError } = await supabase
       .from("candidate_sites")
-      .update({
-        site_name: input.name,
-      })
+      .update(updates)
       .eq("id", siteId)
       .eq("user_id", userId)
       .select("*")
@@ -1406,6 +1526,8 @@ export class DatabaseStorage implements IStorage {
       return this.saveCandidateSiteViaSupabase(siteData);
     }
 
+    const resolvedPlanningAreaId = await this.resolvePlanningAreaIdViaDb(siteData.planningAreaId);
+
     const [score] = await db
       .insert(siteScores)
       .values({
@@ -1427,7 +1549,7 @@ export class DatabaseStorage implements IStorage {
       postalCode: siteData.postalCode,
       lat: siteData.lat !== undefined ? siteData.lat.toString() : undefined,
       lng: siteData.lng !== undefined ? siteData.lng.toString() : undefined,
-      planningAreaId: siteData.planningAreaId,
+      planningAreaId: resolvedPlanningAreaId ?? undefined,
       savedSiteScoreId: score.id,
       notes: siteData.notes,
     });
@@ -1442,11 +1564,21 @@ export class DatabaseStorage implements IStorage {
       return this.updateCandidateSiteViaSupabase(siteId, userId, input);
     }
 
+    const updates: Partial<typeof candidateSites.$inferInsert> = {};
+    if (typeof input.name === "string") {
+      updates.siteName = input.name;
+    }
+    if (typeof input.notes === "string") {
+      updates.notes = input.notes;
+    }
+
+    if (Object.keys(updates).length === 0) {
+      return null;
+    }
+
     const [updatedSite] = await db
       .update(candidateSites)
-      .set({
-        siteName: input.name,
-      })
+      .set(updates)
       .where(and(eq(candidateSites.id, siteId), eq(candidateSites.userId, userId)))
       .returning();
 

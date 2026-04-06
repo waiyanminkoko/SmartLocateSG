@@ -9,7 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { getCandidateSiteDisplayName, mockProfiles, CandidateSite } from "@/lib/mock-data";
 import { openChatbot, setLatestChatbotPayload, type OpenChatbotPayload } from "@/lib/chatbot";
 import { buildPortfolioInsights } from "@/lib/explanation-insights";
@@ -38,6 +38,10 @@ export default function Portfolio() {
   const [renamingSite, setRenamingSite] = useState<CandidateSite | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [renameSubmitting, setRenameSubmitting] = useState(false);
+  const [notesSite, setNotesSite] = useState<CandidateSite | null>(null);
+  const [notesDraft, setNotesDraft] = useState("");
+  const [notesDialogOpen, setNotesDialogOpen] = useState(false);
+  const [notesSaving, setNotesSaving] = useState(false);
 
   // Auto-filter to active profile when profiles load
   useEffect(() => {
@@ -215,9 +219,88 @@ export default function Portfolio() {
     })();
   };
 
-  const updateNotes = (id: string, notes: string) => {
-    setSites((prev) => prev.map((s) => (s.id === id ? { ...s, notes } : s)));
-    toast({ title: "Notes saved", description: "Stored locally for this session." });
+  const openNotesDialog = (site: CandidateSite) => {
+    setNotesSite(site);
+    setNotesDraft(site.notes ?? "");
+    setNotesDialogOpen(true);
+  };
+
+  const closeNotesDialog = () => {
+    setNotesDialogOpen(false);
+    setNotesSite(null);
+    setNotesDraft("");
+    setNotesSaving(false);
+  };
+
+  const persistNotesOnClose = async () => {
+    if (notesSaving) {
+      return;
+    }
+
+    const editingSite = notesSite;
+    if (!editingSite) {
+      closeNotesDialog();
+      return;
+    }
+
+    const nextNotes = notesDraft;
+    const previousNotes = editingSite.notes ?? "";
+    if (nextNotes === previousNotes) {
+      closeNotesDialog();
+      return;
+    }
+
+    setNotesSaving(true);
+    try {
+      const response = await fetch(
+        `/api/sites/${encodeURIComponent(editingSite.id)}?userId=${encodeURIComponent(userId)}`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ notes: nextNotes }),
+        },
+      );
+
+      if (!response.ok) {
+        throw new Error("failed");
+      }
+
+      const updated = (await response.json()) as CandidateSite;
+      setSites((prev) => {
+        const next = prev.map((site) =>
+          site.id === editingSite.id
+            ? {
+                ...site,
+                notes: updated.notes ?? nextNotes,
+                breakdownDetailsJson: updated.breakdownDetailsJson ?? site.breakdownDetailsJson,
+              }
+            : site,
+        );
+        writeApiCache(`sites:${userId}`, next, SITES_CACHE_TTL_MS);
+        return next;
+      });
+
+      toast({ title: "Notes updated", description: "Saved to Supabase." });
+      closeNotesDialog();
+    } catch {
+      toast({
+        title: "Failed to update notes",
+        description: "Please try again.",
+        variant: "destructive",
+      });
+      setNotesSaving(false);
+    }
+  };
+
+  const handleNotesDialogOpenChange = (open: boolean) => {
+    if (open) {
+      setNotesDialogOpen(true);
+      return;
+    }
+
+    void persistNotesOnClose();
   };
 
   const openOnMap = (site: CandidateSite) => {
@@ -542,29 +625,15 @@ export default function Portfolio() {
                         <Pencil className="h-4 w-4" aria-hidden="true" /> Rename
                       </Button>
 
-                      <Dialog>
-                        <DialogTrigger asChild>
-                          <Button variant="outline" size="sm" className="gap-2" data-testid={`button-edit-notes-${s.id}`}>
-                            <FileText className="h-4 w-4" aria-hidden="true" /> Notes
-                          </Button>
-                        </DialogTrigger>
-                        <DialogContent>
-                          <DialogHeader>
-                            <DialogTitle data-testid="text-notes-title">Edit notes</DialogTitle>
-                          </DialogHeader>
-                          <div className="space-y-2">
-                            <Textarea
-                              defaultValue={s.notes ?? ""}
-                              placeholder="Add any observations, risks, or follow-ups…"
-                              data-testid="textarea-notes"
-                              onChange={(e) => updateNotes(s.id, e.target.value)}
-                            />
-                            <div className="text-xs text-muted-foreground" data-testid="text-notes-hint">
-                              Notes are stored locally for this session.
-                            </div>
-                          </div>
-                        </DialogContent>
-                      </Dialog>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-2"
+                        onClick={() => openNotesDialog(s)}
+                        data-testid={`button-edit-notes-${s.id}`}
+                      >
+                        <FileText className="h-4 w-4" aria-hidden="true" /> Notes
+                      </Button>
 
                       <Button
                         variant="ghost"
@@ -597,6 +666,28 @@ export default function Portfolio() {
           </div>
         )}
       </div>
+      <Dialog open={notesDialogOpen} onOpenChange={handleNotesDialogOpenChange}>
+        <DialogContent
+          onInteractOutside={(event) => event.preventDefault()}
+          onEscapeKeyDown={(event) => event.preventDefault()}
+        >
+          <DialogHeader>
+            <DialogTitle data-testid="text-notes-title">Edit notes</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Textarea
+              value={notesDraft}
+              placeholder="Add any observations, risks, or follow-ups..."
+              data-testid="textarea-notes"
+              onChange={(event) => setNotesDraft(event.target.value)}
+              disabled={notesSaving}
+            />
+            <div className="text-xs text-muted-foreground" data-testid="text-notes-hint">
+              Notes are saved when you close this dialog using the X button.
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
       <Dialog open={Boolean(renamingSite)} onOpenChange={(open) => { if (!open) closeRenameDialog(); }}>
         <DialogContent>
           <DialogHeader>

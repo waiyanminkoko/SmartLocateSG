@@ -7,6 +7,7 @@ import {
   getPointLayerCollection,
   scoreSiteLocation,
 } from "./map-data";
+import { reverseGeocodeWithFallback } from "./geocode";
 
 type ExplanationItem = {
   label: string;
@@ -37,9 +38,14 @@ const deleteSiteQuerySchema = z.object({
   userId: z.string().min(1, "userId is required"),
 });
 
-const updateSiteSchema = z.object({
-  name: z.string().min(1, "name is required"),
-});
+const updateSiteSchema = z
+  .object({
+    name: z.string().min(1, "name is required").optional(),
+    notes: z.string().optional(),
+  })
+  .refine((value) => value.name !== undefined || value.notes !== undefined, {
+    message: "At least one of name or notes is required",
+  });
 
 const createProfileSchema = z.object({
   userId: z.string().min(1, "userId is required"),
@@ -68,6 +74,11 @@ const siteScoreSchema = z.object({
   lng: z.number().finite(),
   profileId: z.string().min(1).optional(),
   radiusMeters: z.number().int().min(500).max(2000).optional().default(1000),
+});
+
+const reverseGeocodeSchema = z.object({
+  lat: z.number().finite(),
+  lng: z.number().finite(),
 });
 
 const mapLayerQuerySchema = z
@@ -881,6 +892,21 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/map/reverse-geocode", async (req, res) => {
+    try {
+      const payload = reverseGeocodeSchema.parse(req.body);
+      const result = await reverseGeocodeWithFallback(payload.lat, payload.lng);
+      res.json(result);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.flatten() });
+      }
+
+      console.error("[api/map/reverse-geocode][POST]", error);
+      res.status(500).json({ error: "Failed to reverse geocode location." });
+    }
+  });
+
   app.get("/api/sites/:userId", async (req, res) => {
     try {
       const sites = await storage.getCandidateSites(req.params.userId);
@@ -899,7 +925,7 @@ export async function registerRoutes(
       if (e instanceof z.ZodError) {
         return res.status(400).json({ error: e.flatten() });
       }
-
+      console.error("[api/sites][POST]", e);
       res.status(500).json({ error: "Failed to save candidate site." });
     }
   });
