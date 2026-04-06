@@ -1,0 +1,38 @@
+﻿@startuml UC_13_Individual
+left to right direction
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam packageStyle rectangle
+skinparam actorStyle awesome
+skinparam usecase {
+  BackgroundColor #E3F2FD
+  BorderColor #1565C0
+  FontSize 11
+}
+
+title UC-13: Drop POI Pin and Get Site Score
+
+actor "User\n(A01/A02/A03)" as USER
+actor "System Backend\n(A04)" as A04
+actor "External Data Providers\n(A05)" as A05
+
+rectangle "SmartLocateSG" {
+  usecase "UC-13 Drop POI Pin and Get Site Score" as UC13
+  usecase "UC-10 View Interactive Map" as R10
+  usecase "UC-22 Select Scenario Preset" as R22
+}
+
+USER --> UC13
+A04 --> UC13
+A05 --> UC13
+
+UC13 ..> R10 : <<include>>
+UC13 ..> R22 : <<include>>
+
+note right of UC13
+Pre: Refer corresponding sequence precondition.
+Flow: Main interaction follows sequence messages.
+AC/EX: Alternate and exception branches traced from sequence.
+end note
+
+@enduml

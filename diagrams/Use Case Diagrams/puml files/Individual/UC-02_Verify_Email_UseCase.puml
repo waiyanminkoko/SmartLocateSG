@@ -1,0 +1,34 @@
+﻿@startuml UC_02_Individual
+left to right direction
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam packageStyle rectangle
+skinparam actorStyle awesome
+skinparam usecase {
+  BackgroundColor #E3F2FD
+  BorderColor #1565C0
+  FontSize 11
+}
+
+title UC-02: Verify Email
+
+actor "User\n(A01/A02/A03)" as USER
+actor "System Backend\n(A04)" as A04
+
+rectangle "SmartLocateSG" {
+  usecase "UC-02 Verify Email" as UC02
+
+}
+
+USER --> UC02
+A04 --> UC02
+
+
+
+note right of UC02
+Pre: Refer corresponding sequence precondition.
+Flow: Main interaction follows sequence messages.
+AC/EX: Alternate and exception branches traced from sequence.
+end note
+
+@enduml

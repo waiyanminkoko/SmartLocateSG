@@ -1,0 +1,36 @@
+﻿@startuml UC_12_Individual
+left to right direction
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam packageStyle rectangle
+skinparam actorStyle awesome
+skinparam usecase {
+  BackgroundColor #E3F2FD
+  BorderColor #1565C0
+  FontSize 11
+}
+
+title UC-12: Search Location
+
+actor "User\n(A01/A02/A03)" as USER
+actor "System Backend\n(A04)" as A04
+actor "External Data Providers\n(A05)" as A05
+
+rectangle "SmartLocateSG" {
+  usecase "UC-12 Search Location" as UC12
+  usecase "UC-10 View Interactive Map" as R10
+}
+
+USER --> UC12
+A04 --> UC12
+A05 --> UC12
+
+UC12 ..> R10 : <<extend>>
+
+note right of UC12
+Pre: Refer corresponding sequence precondition.
+Flow: Main interaction follows sequence messages.
+AC/EX: Alternate and exception branches traced from sequence.
+end note
+
+@enduml

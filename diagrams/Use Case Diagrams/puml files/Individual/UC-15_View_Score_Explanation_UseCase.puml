@@ -1,0 +1,36 @@
+﻿@startuml UC_15_Individual
+left to right direction
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam packageStyle rectangle
+skinparam actorStyle awesome
+skinparam usecase {
+  BackgroundColor #E3F2FD
+  BorderColor #1565C0
+  FontSize 11
+}
+
+title UC-15: View Score Explanation
+
+actor "User\n(A01/A02/A03)" as USER
+actor "System Backend\n(A04)" as A04
+actor "AI Assistant" as AI
+
+rectangle "SmartLocateSG" {
+  usecase "UC-15 View Score Explanation" as UC15
+  usecase "UC-13 Drop POI Pin and Get Site Score" as R13
+}
+
+USER --> UC15
+A04 --> UC15
+AI --> UC15
+
+UC15 ..> R13 : <<extend>>
+
+note right of UC15
+Pre: Refer corresponding sequence precondition.
+Flow: Main interaction follows sequence messages.
+AC/EX: Alternate and exception branches traced from sequence.
+end note
+
+@enduml

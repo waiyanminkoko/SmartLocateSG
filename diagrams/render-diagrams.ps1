@@ -53,6 +53,13 @@ function Get-RenderOutputRelativeDir {
         [string]$PumlDirectory
     )
 
+    $normalizedDir = $PumlDirectory -replace "\\", "/"
+
+    # Keep individual Use Case Diagram outputs in Use Case Diagrams/Individual.
+    if ($normalizedDir -match "/Use Case Diagrams/puml files/Individual$") {
+        return "../../Individual"
+    }
+
     # If sources are organized under a "puml files" folder, emit rendered assets
     # to the parent diagram folder.
     if ([System.IO.Path]::GetFileName($PumlDirectory) -ieq "puml files") {
@@ -65,6 +72,10 @@ function Get-RenderOutputRelativeDir {
 foreach ($file in $pumlFiles) {
     $sourceDir = $file.DirectoryName
     $outputDir = Get-RenderOutputRelativeDir -PumlDirectory $sourceDir
+    $resolvedOutputDir = [System.IO.Path]::GetFullPath((Join-Path $sourceDir $outputDir))
+    if (-not (Test-Path $resolvedOutputDir)) {
+        New-Item -ItemType Directory -Path $resolvedOutputDir | Out-Null
+    }
     Push-Location $sourceDir
     try {
         & java @commonArgs -tpng -o $outputDir $file.Name
@@ -81,6 +92,10 @@ Write-Host "Rendering $pumlCount diagram source files to SVG..."
 foreach ($file in $pumlFiles) {
     $sourceDir = $file.DirectoryName
     $outputDir = Get-RenderOutputRelativeDir -PumlDirectory $sourceDir
+    $resolvedOutputDir = [System.IO.Path]::GetFullPath((Join-Path $sourceDir $outputDir))
+    if (-not (Test-Path $resolvedOutputDir)) {
+        New-Item -ItemType Directory -Path $resolvedOutputDir | Out-Null
+    }
     Push-Location $sourceDir
     try {
         & java @commonArgs -tsvg -o $outputDir $file.Name

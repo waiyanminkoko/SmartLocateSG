@@ -1,0 +1,34 @@
+﻿@startuml UC_25_Individual
+left to right direction
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam packageStyle rectangle
+skinparam actorStyle awesome
+skinparam usecase {
+  BackgroundColor #E3F2FD
+  BorderColor #1565C0
+  FontSize 11
+}
+
+title UC-25: Run/Monitor Data Refresh
+
+actor "System Backend\n(A04)" as A04
+actor "External Data Providers\n(A05)" as A05
+
+rectangle "SmartLocateSG" {
+  usecase "UC-25 Run/Monitor Data Refresh" as UC25
+
+}
+
+A04 --> UC25
+A05 --> UC25
+
+
+
+note right of UC25
+Pre: Refer corresponding sequence precondition.
+Flow: Main interaction follows sequence messages.
+AC/EX: Alternate and exception branches traced from sequence.
+end note
+
+@enduml

@@ -1,0 +1,34 @@
+﻿@startuml UC_16_Individual
+left to right direction
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam packageStyle rectangle
+skinparam actorStyle awesome
+skinparam usecase {
+  BackgroundColor #E3F2FD
+  BorderColor #1565C0
+  FontSize 11
+}
+
+title UC-16: Save Candidate Site
+
+actor "User\n(A01/A02/A03)" as USER
+actor "System Backend\n(A04)" as A04
+
+rectangle "SmartLocateSG" {
+  usecase "UC-16 Save Candidate Site" as UC16
+
+}
+
+USER --> UC16
+A04 --> UC16
+
+
+
+note right of UC16
+Pre: Refer corresponding sequence precondition.
+Flow: Main interaction follows sequence messages.
+AC/EX: Alternate and exception branches traced from sequence.
+end note
+
+@enduml

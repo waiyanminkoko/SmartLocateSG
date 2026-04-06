@@ -1,0 +1,34 @@
+﻿@startuml UC_21_Individual
+left to right direction
+!theme plain
+skinparam backgroundColor #FEFEFE
+skinparam packageStyle rectangle
+skinparam actorStyle awesome
+skinparam usecase {
+  BackgroundColor #E3F2FD
+  BorderColor #1565C0
+  FontSize 11
+}
+
+title UC-21: Export Comparison Report
+
+actor "User\n(A01/A02/A03)" as USER
+actor "System Backend\n(A04)" as A04
+
+rectangle "SmartLocateSG" {
+  usecase "UC-21 Export Comparison Report" as UC21
+  usecase "UC-20 Compare Candidate Sites" as R20
+}
+
+USER --> UC21
+A04 --> UC21
+
+UC21 ..> R20 : <<include>>
+
+note right of UC21
+Pre: Refer corresponding sequence precondition.
+Flow: Main interaction follows sequence messages.
+AC/EX: Alternate and exception branches traced from sequence.
+end note
+
+@enduml
