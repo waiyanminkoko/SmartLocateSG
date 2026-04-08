@@ -323,6 +323,34 @@ function requireSupabaseHttpClient() {
   return supabaseHttpClient;
 }
 
+function psfToRentalScore(psf: number | null): number {
+  if (psf === null) return 50;
+  if (psf < 2000)   return 100;
+  if (psf < 4000)   return 75;
+  if (psf < 7000)   return 40;
+  return 10;
+}
+
+async function fetchRentalScore(lat: number, lng: number): Promise<number | null> {
+  try {
+    const supabase = requireSupabaseHttpClient();
+    for (const radius of [1000, 2000, 3000]) {
+      const { data, error } = await supabase.rpc("median_psf_nearby", {
+        center_lat: lat,
+        center_lng: lng,
+        radius_m: radius,
+        years_back: 3,
+      });
+      if (error) continue;
+      const medianPsf = data !== null && data !== undefined ? Number(data) : null;
+      if (medianPsf !== null) return psfToRentalScore(medianPsf);
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 async function fetchAllSupabaseRows<T extends Record<string, unknown>>(
   table: string,
   selectClause: string,
@@ -517,6 +545,33 @@ function getDbGeometryExpression(alias: string) {
   END`;
 }
 
+function roughCentroid(geometryGeojson: string | null): { lat: number; lng: number } | null {
+  if (!geometryGeojson) return null;
+  try {
+    const geom = JSON.parse(geometryGeojson) as {
+      type?: string;
+      coordinates?: unknown;
+      geometry?: { type?: string; coordinates?: unknown };
+    };
+    const resolved = geom.type === "Feature" ? geom.geometry : geom;
+    if (!resolved) return null;
+
+    let ring: number[][] = [];
+    if (resolved.type === "Polygon") {
+      ring = (resolved.coordinates as number[][][])[0] ?? [];
+    } else if (resolved.type === "MultiPolygon") {
+      ring = ((resolved.coordinates as number[][][][])[0]?.[0]) ?? [];
+    }
+
+    if (!ring.length) return null;
+    const avgLng = ring.reduce((s, c) => s + c[0], 0) / ring.length;
+    const avgLat = ring.reduce((s, c) => s + c[1], 0) / ring.length;
+    return { lat: avgLat, lng: avgLng };
+  } catch {
+    return null;
+  }
+}
+
 function mapPlanningAreaRows(rows: RawOverlayRow[]): PlanningAreaMetricRow[] {
   const baseRows = rows.map((row) => ({
     planningAreaId: row.planning_area_id,
@@ -532,9 +587,30 @@ function mapPlanningAreaRows(rows: RawOverlayRow[]): PlanningAreaMetricRow[] {
     retailTransactionCount: Math.round(toNumber(row.retail_transaction_count) ?? 0),
   }));
 
-  const demographicScores = normalizeRows(
-    baseRows.map((row) => row.populationTotal),
-  );
+  // For areas with no population data, substitute the average of the 3 nearest
+  // neighbours that do have data, so the demographic score is never silently null.
+  const NEIGHBOUR_K = 3;
+  const centroids = baseRows.map((row) => roughCentroid(row.geometryGeojson ?? null));
+  const filledPopulations = baseRows.map((row, i) => {
+    if (row.populationTotal !== null) return row.populationTotal;
+    const origin = centroids[i];
+    if (!origin) return null;
+    const neighbours = baseRows
+      .map((r, j) => {
+        if (r.populationTotal === null) return null;
+        const c = centroids[j];
+        if (!c) return null;
+        const dist = Math.hypot(c.lat - origin.lat, c.lng - origin.lng);
+        return { pop: r.populationTotal as number, dist };
+      })
+      .filter((x): x is { pop: number; dist: number } => x !== null)
+      .sort((a, b) => a.dist - b.dist)
+      .slice(0, NEIGHBOUR_K);
+    if (!neighbours.length) return null;
+    return Math.round(neighbours.reduce((s, n) => s + n.pop, 0) / neighbours.length);
+  });
+
+  const demographicScores = normalizeRows(filledPopulations);
   const accessibilityScores = normalizeRows(
     baseRows.map((row) => row.busStopCount + row.mrtExitCount * 4),
   );
@@ -1043,14 +1119,6 @@ async function getCompetitionCategoryForProfile(profileId?: string) {
         ).data?.sector?.toLowerCase() ?? "";
 
     if (/(f&b|food|beverage|restaurant|cafe|bakery)/.test(sector)) return "fnb";
-    if (/(clothing|fashion|apparel|shoe)/.test(sector)) return "clothing";
-    if (/(electronics|computer|phone|mobile)/.test(sector)) return "electronics";
-    if (/(beauty|salon|cosmetic|spa)/.test(sector)) return "beauty";
-    if (/(supermarket|grocery)/.test(sector)) return "supermarket";
-    if (/(pharmacy|health)/.test(sector)) return "pharmacy";
-    if (/(gym|fitness)/.test(sector)) return "gym";
-    if (/(bank|finance|financial)/.test(sector)) return "bank";
-    if (/(convenience)/.test(sector)) return "convenience";
   } catch {
     return "retail";
   }
@@ -1143,7 +1211,7 @@ export async function scoreSiteLocation(input: {
     }, 0);
 
     const demographic = planningArea?.demographicScore ?? null;
-    const rental = planningArea?.vacancyScore ?? null;
+    const rental = await fetchRentalScore(input.lat, input.lng);
     const competition = competitionScoreFromCount(competitionCountWithinRadius);
     const composite = average([demographic, accessibility, rental, competition]);
 
@@ -1264,7 +1332,7 @@ export async function scoreSiteLocation(input: {
   }
 
   const demographic = planningArea?.demographicScore ?? null;
-  const rental = planningArea?.vacancyScore ?? null;
+  const rental = await fetchRentalScore(input.lat, input.lng);
   const competition = competitionScoreFromCount(competitionCountWithinRadius);
   const composite = average([demographic, accessibility, rental, competition]);
 
