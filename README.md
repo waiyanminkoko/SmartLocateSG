@@ -24,8 +24,8 @@ The app addresses a common problem in site planning: data for demographics, acce
 - Login/register UI and protected routes for app pages.
 - Dashboard with quick actions and recent activity summaries.
 - Business profile list and multi-step profile wizard with create, edit, activate, and delete flows.
-- Interactive Google Maps page with click-to-score, pan/zoom, and selected-site context.
-- Postal/address search and Google Places autocomplete integration.
+- Interactive Google Maps page with click-to-score, pan/zoom, reset-to-pin, and selected-site context.
+- Postal/address search with Google Places autocomplete suggestions and manual search fallback.
 - Server-backed map scoring endpoint with score breakdown response.
 - Planning-area choropleth overlays (Composite, Demographics, Accessibility, Vacancy) with legend and visibility controls.
 - Overview mode and focus mode, including radius-filtered MRT stations, MRT exits, and bus stops.
@@ -248,6 +248,13 @@ curl -X POST http://127.0.0.1:5000/api/chatbot \
 - Add authentication, user accounts, and portfolio ownership.
 
 **Update Log**
+April 9, 2026
+- Standardized the map page top layout so the header, toolbar, and status strip align more closely with the rest of the app.
+- Strengthened hover states across shared buttons and dropdowns for clearer clickability throughout the UI.
+- Restored Google Places autocomplete suggestions in the map search input while keeping manual search intact.
+- Added a `Reset to pin` map action that recenters and frames the currently selected site using the active radius.
+- Simplified the overlay visibility toggle by removing the extra visible/hidden badge and keeping the control text-only.
+
 March 25, 2026
 - Added overview vs focus behavior on the map so nationwide planning-area overlays show before a site is selected.
 - Added choropleth visibility toggle, zoom-gated MRT exits, clearer overlay legend ranges, and stronger layer controls.

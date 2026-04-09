@@ -1,8 +1,6 @@
 import { ReactNode } from "react";
 import { Link, useLocation } from "wouter";
 import {
-  BarChart3,
-  Layers,
   LayoutGrid,
   LogOut,
   Map,
@@ -86,17 +84,6 @@ export function AppShell({
           </div>
 
           <div className="flex items-center gap-2">
-            <div className="hidden items-center gap-2 lg:flex">
-              <Button variant="outline" size="sm" className="gap-2" data-testid="button-profile-selector">
-                <Layers className="h-4 w-4" aria-hidden="true" />
-                Active profile
-              </Button>
-              <Button variant="outline" size="sm" className="gap-2" data-testid="button-scenario-selector">
-                <BarChart3 className="h-4 w-4" aria-hidden="true" />
-                Scenario
-              </Button>
-            </div>
-
             {right}
 
             <DropdownMenu>

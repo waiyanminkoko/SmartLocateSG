@@ -5,6 +5,7 @@ import {
   SlidersHorizontal,
   Sparkles,
   SquarePlus,
+  LocateFixed,
   RotateCcw,
 } from "lucide-react";
 import { Loader } from "@googlemaps/js-api-loader";
@@ -168,11 +169,11 @@ const overlayDescriptions: Record<Overlay, string> = {
 };
 
 const overlayColorBands = [
-  { label: "80 - 100", meaning: "Very strong", color: "#0f766e" },
-  { label: "65 - 79", meaning: "Strong", color: "#0ea5e9" },
-  { label: "50 - 64", meaning: "Moderate", color: "#f59e0b" },
-  { label: "0 - 49", meaning: "Weak", color: "#dc2626" },
-  { label: "No data", meaning: "Metric unavailable", color: "#cbd5e1" },
+  { label: "80 - 100", meaning: "Very strong", color: "#7dd3c7" },
+  { label: "65 - 79", meaning: "Strong", color: "#7dd3fc" },
+  { label: "50 - 64", meaning: "Moderate", color: "#fcd34d" },
+  { label: "0 - 49", meaning: "Weak", color: "#fca5a5" },
+  { label: "No data", meaning: "Metric unavailable", color: "#e2e8f0" },
 ] as const;
 
 const layerMarkerStyles: Record<LayerToggleKey, { label: string; color: string; description: string }> = {
@@ -638,6 +639,15 @@ export default function MapPage() {
     dropPinModeRef.current = isDropPinMode;
   }, [isDropPinMode]);
 
+  useEffect(() => {
+    if (!overlayVisible || !isDropPinMode) {
+      return;
+    }
+
+    setIsDropPinMode(false);
+    showOverlayDropPinBlockedToast();
+  }, [isDropPinMode, overlayVisible]);
+
   const [profiles, setProfiles] = useLocalStorageState<BusinessProfile[]>("smartlocate:profiles", []);
   const [, setSites] = useLocalStorageState<CandidateSite[]>("smartlocate:sites", []);
   const [activeProfileId, setActiveProfileId] = useState<string>("");
@@ -1057,6 +1067,49 @@ export default function MapPage() {
     }
   };
 
+  const showOverlayDropPinBlockedToast = () => {
+    toast({
+      title: "Turn off overlays to drop a pin",
+      description: "The planning-area overlay is capturing map clicks. Hide the overlay, then pick a site on the map.",
+    });
+  };
+
+  const resetToOverview = () => {
+    if (!mapRef.current) return;
+    clearPin();
+    mapRef.current.setCenter(defaultCenter);
+    mapRef.current.setZoom(12);
+    clearRestoredSiteDetails();
+    setRestoredSiteName(null);
+    setSelectedLatLng(null);
+    setSelectedAddress(null);
+    setSelectedPostalCode(null);
+    setSelectedArea(null);
+    setSelectedTransportFeature(null);
+    setSiteScore(null);
+    setSiteScoreError(null);
+    setIsDropPinMode(false);
+    setSearchQuery("");
+    setMapZoom(12);
+  };
+
+  const resetToPinnedArea = () => {
+    if (!mapRef.current || !selectedLatLng || !googleRef.current?.maps) {
+      return;
+    }
+
+    const latDelta = focusRadiusMeters / 111_320;
+    const lngScale = Math.max(Math.cos((selectedLatLng.lat * Math.PI) / 180), 0.2);
+    const lngDelta = focusRadiusMeters / (111_320 * lngScale);
+    const bounds = new googleRef.current.maps.LatLngBounds(
+      { lat: selectedLatLng.lat - latDelta, lng: selectedLatLng.lng - lngDelta },
+      { lat: selectedLatLng.lat + latDelta, lng: selectedLatLng.lng + lngDelta },
+    );
+
+    mapRef.current.fitBounds(bounds, 72);
+    setSelectedTransportFeature(null);
+  };
+
   const createId = () =>
     typeof crypto !== "undefined" && "randomUUID" in crypto
       ? crypto.randomUUID()
@@ -1211,11 +1264,11 @@ export default function MapPage() {
   };
 
   const getOverlayColor = (value: number | null) => {
-    if (value === null) return "#cbd5e1";
-    if (value >= 80) return "#0f766e";
-    if (value >= 65) return "#0ea5e9";
-    if (value >= 50) return "#f59e0b";
-    return "#dc2626";
+    if (value === null) return "#e2e8f0";
+    if (value >= 80) return "#7dd3c7";
+    if (value >= 65) return "#7dd3fc";
+    if (value >= 50) return "#fcd34d";
+    return "#fca5a5";
   };
 
   const applyOverlayStyles = () => {
@@ -1233,10 +1286,11 @@ export default function MapPage() {
 
       return {
         fillColor: getOverlayColor(typeof value === "number" ? value : null),
-        fillOpacity: overlayVisible ? (typeof value === "number" ? (isSelected ? 0.68 : 0.56) : 0.22) : 0,
-        strokeColor: isSelected ? "#0f172a" : "#64748b",
-        strokeWeight: isSelected ? 3.25 : 1.1,
-        clickable: true,
+        fillOpacity: overlayVisible ? (typeof value === "number" ? (isSelected ? 0.34 : 0.2) : 0.1) : 0,
+        strokeColor: "#111827",
+        strokeOpacity: isSelected ? 0.95 : 0.78,
+        strokeWeight: isSelected ? 3.4 : 2.1,
+        clickable: overlayVisible && !isDropPinMode,
       };
     });
   };
@@ -2122,7 +2176,22 @@ export default function MapPage() {
 
   useEffect(() => {
     applyOverlayStyles();
-  }, [overlay, overlayVisible, selectedArea, siteScore]);
+  }, [isDropPinMode, overlay, overlayVisible, selectedArea, siteScore]);
+
+  useEffect(() => {
+    if (!mapRef.current) {
+      return;
+    }
+
+    mapRef.current.setOptions({
+      draggableCursor: isDropPinMode ? "crosshair" : undefined,
+      draggingCursor: isDropPinMode ? "crosshair" : undefined,
+    });
+
+    if (mapContainerRef.current) {
+      mapContainerRef.current.style.cursor = isDropPinMode ? "crosshair" : "";
+    }
+  }, [isDropPinMode]);
 
   useEffect(() => {
     const googleMaps = googleRef.current;
@@ -2163,11 +2232,11 @@ export default function MapPage() {
           {
             icon: {
               path: googleRef.current?.maps?.SymbolPath?.CIRCLE ?? 0,
-              scale: 8,
+              scale: 9,
               fillColor: "#7c3aed",
-              fillOpacity: 0.9,
-              strokeColor: "#ffffff",
-              strokeWeight: 1.5,
+              fillOpacity: 0.95,
+              strokeColor: "#0f172a",
+              strokeWeight: 1.9,
             },
           },
           layerVisibility.mrtStations && hasSelectedSite,
@@ -2197,11 +2266,11 @@ export default function MapPage() {
           {
             icon: {
               path: googleRef.current?.maps?.SymbolPath?.CIRCLE ?? 0,
-              scale: 6,
+              scale: 6.8,
               fillColor: "#2563eb",
-              fillOpacity: 0.9,
-              strokeColor: "#ffffff",
-              strokeWeight: 1,
+              fillOpacity: 0.94,
+              strokeColor: "#0f172a",
+              strokeWeight: 1.45,
             },
           },
           layerVisibility.mrtExits && hasSelectedSite && mapZoom >= MRT_EXITS_MIN_ZOOM,
@@ -2231,11 +2300,11 @@ export default function MapPage() {
           {
             icon: {
               path: googleRef.current?.maps?.SymbolPath?.CIRCLE ?? 0,
-              scale: 5,
+              scale: 5.9,
               fillColor: "#059669",
-              fillOpacity: 0.85,
-              strokeColor: "#ffffff",
-              strokeWeight: 1,
+              fillOpacity: 0.92,
+              strokeColor: "#0f172a",
+              strokeWeight: 1.35,
             },
           },
           layerVisibility.busStops && hasSelectedSite,
@@ -2434,6 +2503,11 @@ export default function MapPage() {
         const overlayLayer = new googleMaps.maps.Data();
         overlayLayer.setMap(map);
         overlayLayer.addListener("click", (event: any) => {
+          if (dropPinModeRef.current) {
+            showOverlayDropPinBlockedToast();
+            return;
+          }
+
           const feature = event.feature;
           setSelectedTransportFeature(null);
           setSelectedArea({
@@ -2560,46 +2634,77 @@ export default function MapPage() {
   }, [apiKey, mapStyleId, toast]);
 
   return (
-    <AppShell title="Map">
+    <AppShell
+      title="Map"
+      right={
+        <div className="hidden lg:flex items-center gap-2">
+          <div className="whitespace-nowrap text-xs font-medium text-muted-foreground">Active profile</div>
+          <Select value={activeProfileId} onValueChange={handleProfileChange}>
+            <SelectTrigger
+              className="h-9 w-[168px] bg-background/90 text-xs [&>span]:truncate"
+              disabled={profiles.length === 0}
+              data-testid="select-header-active-profile"
+            >
+              <SelectValue placeholder={profiles.length === 0 ? "No profiles" : "Select a profile"} />
+            </SelectTrigger>
+            <SelectContent>
+              {profiles.map((p) => (
+                <SelectItem key={p.id} value={p.id} data-testid={`select-item-header-profile-${p.id}`}>
+                  {p.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      }
+    >
       <div
-        className={`map-page-grid-wrap transition-[padding-right] duration-200 ${
-          isAnySidePanelOpen ? "is-sidepanel-open" : ""
-        }`}
+        className="space-y-6"
       >
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight" data-testid="text-map-page-title">Map</h1>
+          <p className="mt-1 text-sm text-muted-foreground" data-testid="text-map-page-subtitle">
+            Explore planning-area overlays, score candidate sites, and inspect nearby transport context.
+          </p>
+        </div>
+
+        <div
+          className={`map-page-grid-wrap transition-[padding-right] duration-200 ${
+            isAnySidePanelOpen ? "is-sidepanel-open" : ""
+          }`}
+        >
         <div className="grid gap-3 lg:items-start lg:grid-cols-[360px_minmax(0,1fr)_360px] xl:grid-cols-[380px_minmax(0,1fr)_380px]">
         <Card className="border bg-card p-4 shadow-sm lg:sticky lg:top-24 lg:max-h-[calc(100vh-120px)] lg:overflow-y-auto">
           <div className="space-y-4">
             <div>
               <div className="text-sm font-semibold" data-testid="text-map-controls-title">Controls</div>
               <div className="mt-1 text-xs text-muted-foreground" data-testid="text-map-controls-sub">
-                Select profile, scenario, overlays, and layers.
+                Adjust scoring priorities, overlays, and nearby transport layers.
               </div>
             </div>
 
-            <div className="space-y-2 rounded-xl border bg-muted/10 p-3">
+            <div className="space-y-2 rounded-xl border bg-muted/10 p-3 lg:hidden">
               <div>
-                <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Profile</div>
+                <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Active profile</div>
                 <div className="mt-1 text-[11px] text-muted-foreground">
-                  Choose the active business profile used for live scoring.
+                  Choose the business profile used for live scoring.
                 </div>
               </div>
               <Select value={activeProfileId} onValueChange={handleProfileChange}>
-                <SelectTrigger data-testid="select-active-profile">
-                  <SelectValue placeholder="Select a profile" />
+                <SelectTrigger
+                  disabled={profiles.length === 0}
+                  data-testid="select-active-profile-mobile"
+                >
+                  <SelectValue placeholder={profiles.length === 0 ? "No profiles" : "Select a profile"} />
                 </SelectTrigger>
                 <SelectContent>
                   {profiles.map((p) => (
-                    <SelectItem key={p.id} value={p.id} data-testid={`select-item-profile-${p.id}`}>
+                    <SelectItem key={p.id} value={p.id} data-testid={`select-item-profile-mobile-${p.id}`}>
                       {p.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-              {!activeProfile && (
-                <div className="rounded-xl border bg-muted/30 p-3 text-xs text-muted-foreground" data-testid="status-no-profile">
-                  No active profile selected. Create/select a profile to score locations.
-                </div>
-              )}
             </div>
 
             <div className="grid gap-3">
@@ -2724,22 +2829,12 @@ export default function MapPage() {
                   <Button
                     type="button"
                     variant={overlayVisible ? "default" : "outline"}
-                    className="justify-between"
+                    className="justify-center"
                     aria-pressed={overlayVisible}
                     onClick={() => setOverlayVisible((prev) => !prev)}
                     data-testid="toggle-overlay-visibility"
                   >
                     <span>{overlayVisible ? "Overlay on" : "Overlay off"}</span>
-                    <span
-                      className={cn(
-                        "rounded-full px-2 py-0.5 text-[11px] font-semibold",
-                        overlayVisible
-                          ? "bg-white/15 text-primary-foreground"
-                          : "bg-muted text-muted-foreground",
-                      )}
-                    >
-                      {overlayVisible ? "Visible" : "Hidden"}
-                    </span>
                   </Button>
                 </div>
               </div>
@@ -2965,6 +3060,7 @@ export default function MapPage() {
                   <div className="relative flex-1">
                     <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" aria-hidden="true" />
                     <Input
+                      ref={searchInputRef}
                       type="search"
                       placeholder="Postal code or address"
                       className="pl-9"
@@ -2990,7 +3086,7 @@ export default function MapPage() {
                   </Button>
                 </div>
                 <div className="text-xs text-muted-foreground">
-                  Tip: enter a 6-digit Singapore postal code for faster results.
+                  Start typing to see suggested addresses, or enter a 6-digit Singapore postal code for faster results.
                 </div>
               </div>
             </div>
@@ -2998,40 +3094,39 @@ export default function MapPage() {
         </Card>
 
         <Card className="flex flex-col overflow-hidden border bg-card p-0 shadow-sm lg:sticky lg:top-24 lg:min-h-[560px] lg:h-[calc(100vh-120px)]" data-testid="map-canvas">
-          <div className="flex items-center justify-between border-b px-4 py-3 shrink-0">
-            <div className="text-sm font-semibold" data-testid="text-map-title">Singapore map</div>
-            <div className="flex items-center gap-2">
+          <div className="flex items-start justify-between gap-3 border-b px-4 py-3 shrink-0">
+            <div>
+              <div className="text-sm font-semibold" data-testid="text-map-title">Singapore map</div>
+              <div className="mt-1 text-xs text-muted-foreground">
+                Search, pin, and inspect live map context around a candidate site.
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center justify-end gap-2">
               <Button
-                variant="ghost"
+                variant="secondary"
                 size="sm"
                 className="gap-2"
-                onClick={() => {
-                  if (!mapRef.current) return;
-                  clearPin();
-                  mapRef.current.setCenter(defaultCenter);
-                  mapRef.current.setZoom(12);
-                  clearRestoredSiteDetails();
-                  setRestoredSiteName(null);
-                  setSelectedLatLng(null);
-                  setSelectedAddress(null);
-                  setSelectedPostalCode(null);
-                  setSelectedArea(null);
-                  setSelectedTransportFeature(null);
-                  setSiteScore(null);
-                  setSiteScoreError(null);
-                  setIsDropPinMode(false);
-                  setSearchQuery("");
-                  setMapZoom(12);
-                }}
+                onClick={resetToOverview}
                 data-testid="button-reset-view"
               >
                 <RotateCcw className="h-4 w-4" aria-hidden="true" />
                 Reset view
               </Button>
               <Button
-                variant="secondary"
+                variant="outline"
                 size="sm"
                 className="gap-2"
+                onClick={resetToPinnedArea}
+                disabled={!hasSelectedSite}
+                data-testid="button-reset-to-pin"
+              >
+                <LocateFixed className="h-4 w-4" aria-hidden="true" />
+                Reset to pin
+              </Button>
+              <Button
+                variant={isDropPinMode ? "outline" : "secondary"}
+                size="sm"
+                className="gap-2 font-normal"
                 onClick={() => {
                   if (!mapRef.current) {
                     toast({
@@ -3042,33 +3137,38 @@ export default function MapPage() {
                     return;
                   }
 
+                  if (!isDropPinMode && overlayVisible) {
+                    showOverlayDropPinBlockedToast();
+                    return;
+                  }
+
                   setIsDropPinMode((prev) => !prev);
                   toast({
-                    title: isDropPinMode ? "Drop pin cancelled" : "Drop pin mode enabled",
+                    title: isDropPinMode ? "Selection cancelled" : "Selection mode enabled",
                     description: isDropPinMode
-                      ? "Pin placement cancelled."
-                      : "Click on the map to place your pin and start live scoring.",
+                      ? "Map selection cancelled."
+                      : "Click once on the map to choose a site and start live scoring.",
                   });
                 }}
                 data-testid="button-drop-pin"
               >
                 <MapPin className="h-4 w-4" aria-hidden="true" />
-                {isDropPinMode ? "Cancel drop" : "Drop pin"}
+                {isDropPinMode ? "Cancel selection" : "Select on map"}
               </Button>
             </div>
           </div>
-          <div className="flex flex-wrap items-center gap-2 border-b bg-muted/20 px-4 py-2 text-[11px] text-muted-foreground">
-            <span className="rounded-full border bg-background/80 px-2 py-1">
-              Mode: {mapMode === "overview" ? "Overview" : "Focus"}
+          <div className="flex flex-wrap items-center gap-2 border-b bg-background/60 px-4 py-2 text-[11px] text-muted-foreground">
+            <span className="rounded-md bg-muted/30 px-2 py-1">
+              Mode: <span className="text-foreground">{mapMode === "overview" ? "Overview" : "Focus"}</span>
             </span>
-            <span className="rounded-full border bg-background/80 px-2 py-1">
-              Overlay: {overlayVisible ? overlay : `${overlay} hidden`}
+            <span className="rounded-md bg-muted/30 px-2 py-1">
+              Overlay: <span className="text-foreground">{overlayVisible ? overlay : `${overlay} hidden`}</span>
             </span>
-            <span className="rounded-full border bg-background/80 px-2 py-1">
-              Scenario: {scenario}
+            <span className="rounded-md bg-muted/30 px-2 py-1">
+              Scenario: <span className="text-foreground">{scenario}</span>
             </span>
-            <span className="rounded-full border bg-background/80 px-2 py-1">
-              Radius: {formatRadiusLabel(focusRadiusMeters)}
+            <span className="rounded-md bg-muted/30 px-2 py-1">
+              Radius: <span className="text-foreground">{formatRadiusLabel(focusRadiusMeters)}</span>
             </span>
           </div>
           <div className="relative flex-1">
@@ -3083,7 +3183,7 @@ export default function MapPage() {
             )}
             {isDropPinMode && (
               <div className="pointer-events-none absolute left-3 top-3 z-10 rounded-full border border-primary/30 bg-card/95 px-3 py-1 text-xs font-medium text-foreground shadow-sm">
-                Drop-pin mode: click on the map to place your pin.
+                Selection mode: click once on the map to place your pin.
               </div>
             )}
             {mapError && (
@@ -3124,104 +3224,8 @@ export default function MapPage() {
               ) : (
                 <div className="mt-2 text-xs text-muted-foreground">
                   {isDropPinMode
-                    ? "Drop-pin mode is active. Click a location on the map to place your pin and start scoring."
-                    : "Search for a place or click Drop pin, then select a location on the map to start scoring a site."}
-                </div>
-              )}
-            </div>
-
-            <div className="rounded-xl border bg-muted/20 p-3" data-testid="card-selected-area">
-              <div className="text-sm font-semibold">Planning area details</div>
-              {selectedArea ? (
-                <div className="mt-2 space-y-2 text-xs text-muted-foreground">
-                  <div className="flex items-center justify-between">
-                    <span>Source</span>
-                    <span>{overlayData?.metadata.source === "demo" ? "Demo data" : "Live data"}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span>Area</span>
-                    <span className="font-medium text-foreground">{selectedArea.planningAreaName}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span>Region</span>
-                    <span>{selectedArea.regionName ?? "Unknown"}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span>Population</span>
-                    <span>{formatMetricValue(selectedArea.populationTotal)}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span>Bus stops in planning area</span>
-                    <span>{selectedArea.busStopCount}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span>MRT exits in area</span>
-                    <span>{selectedArea.mrtExitCount}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span>Avg. PSF proxy</span>
-                    <span>{formatMetricValue(selectedArea.avgUnitPricePsf, " PSF")}</span>
-                  </div>
-                  <div className="mt-2 grid gap-1 rounded-lg bg-background/70 p-2">
-                    <div className="flex items-center justify-between">
-                      <span>Composite</span>
-                      <span>{formatMetricValue(selectedArea.composite)}</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span>Demographics</span>
-                      <span>{formatMetricValue(selectedArea.demographics)}</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span>Accessibility</span>
-                      <span>{formatMetricValue(selectedArea.accessibility)}</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span>Vacancy / rental</span>
-                      <span>{formatMetricValue(selectedArea.vacancy)}</span>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div className="mt-2 text-xs text-muted-foreground">
-                  Click a planning area or score a site to load details.
-                </div>
-              )}
-            </div>
-
-            <div className="rounded-xl border bg-muted/20 p-3" data-testid="card-selected-transport">
-              <div className="text-sm font-semibold">Transport details</div>
-              {selectedTransportFeature ? (
-                <div className="mt-2 space-y-2 text-xs text-muted-foreground">
-                  <div className="flex items-center justify-between">
-                    <span>Source</span>
-                    <span>{selectedTransportFeature.source === "demo" ? "Demo data" : "Live data"}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span>Layer</span>
-                    <span className="font-medium text-foreground">
-                      {selectedTransportFeature.layerKey === "mrtStations"
-                        ? "MRT stations"
-                        : selectedTransportFeature.layerKey === "mrtExits"
-                          ? "MRT exits"
-                          : "Bus stops"}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span>Selected</span>
-                    <span>{selectedTransportFeature.label}</span>
-                  </div>
-                  <div className="mt-2 grid gap-1 rounded-lg bg-background/70 p-2">
-                    {selectedTransportFeature.fields.map((field) => (
-                      <div key={field.label} className="flex items-center justify-between">
-                        <span>{field.label}</span>
-                        <span>{field.value}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ) : (
-                <div className="mt-2 text-xs text-muted-foreground">
-                  Toggle a transport layer, then click a station, exit, or bus stop on the map.
+                    ? "Selection mode is active. Click a location on the map to place your pin and start scoring."
+                    : "Search for a place or click Select on map, then choose a location to start scoring a site."}
                 </div>
               )}
             </div>
@@ -3426,9 +3430,106 @@ export default function MapPage() {
             <div className="rounded-xl border bg-muted/30 p-3 text-xs text-muted-foreground" data-testid="text-data-freshness">
               Using cached data updated on Feb 4, 2026. Refresh in Admin to pull the latest datasets.
             </div>
+            <div className="rounded-xl border bg-muted/20 p-3" data-testid="card-selected-area">
+              <div className="text-sm font-semibold">Planning area details</div>
+              {selectedArea ? (
+                <div className="mt-2 space-y-2 text-xs text-muted-foreground">
+                  <div className="flex items-center justify-between">
+                    <span>Source</span>
+                    <span>{overlayData?.metadata.source === "demo" ? "Demo data" : "Live data"}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span>Area</span>
+                    <span className="font-medium text-foreground">{selectedArea.planningAreaName}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span>Region</span>
+                    <span>{selectedArea.regionName ?? "Unknown"}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span>Population</span>
+                    <span>{formatMetricValue(selectedArea.populationTotal)}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span>Bus stops in planning area</span>
+                    <span>{selectedArea.busStopCount}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span>MRT exits in area</span>
+                    <span>{selectedArea.mrtExitCount}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span>Avg. PSF proxy</span>
+                    <span>{formatMetricValue(selectedArea.avgUnitPricePsf, " PSF")}</span>
+                  </div>
+                  <div className="mt-2 grid gap-1 rounded-lg bg-background/70 p-2">
+                    <div className="flex items-center justify-between">
+                      <span>Composite</span>
+                      <span>{formatMetricValue(selectedArea.composite)}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span>Demographics</span>
+                      <span>{formatMetricValue(selectedArea.demographics)}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span>Accessibility</span>
+                      <span>{formatMetricValue(selectedArea.accessibility)}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span>Vacancy / rental</span>
+                      <span>{formatMetricValue(selectedArea.vacancy)}</span>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="mt-2 text-xs text-muted-foreground">
+                  Click a planning area or score a site to load details.
+                </div>
+              )}
+            </div>
+
+            <div className="rounded-xl border bg-muted/20 p-3" data-testid="card-selected-transport">
+              <div className="text-sm font-semibold">Transport details</div>
+              {selectedTransportFeature ? (
+                <div className="mt-2 space-y-2 text-xs text-muted-foreground">
+                  <div className="flex items-center justify-between">
+                    <span>Source</span>
+                    <span>{selectedTransportFeature.source === "demo" ? "Demo data" : "Live data"}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span>Layer</span>
+                    <span className="font-medium text-foreground">
+                      {selectedTransportFeature.layerKey === "mrtStations"
+                        ? "MRT stations"
+                        : selectedTransportFeature.layerKey === "mrtExits"
+                          ? "MRT exits"
+                          : "Bus stops"}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span>Selected</span>
+                    <span>{selectedTransportFeature.label}</span>
+                  </div>
+                  <div className="mt-2 grid gap-1 rounded-lg bg-background/70 p-2">
+                    {selectedTransportFeature.fields.map((field) => (
+                      <div key={field.label} className="flex items-center justify-between">
+                        <span>{field.label}</span>
+                        <span>{field.value}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="mt-2 text-xs text-muted-foreground">
+                  Toggle a transport layer, then click a station, exit, or bus stop on the map.
+                </div>
+              )}
+            </div>
+
           </div>
         </Card>
         </div>
+      </div>
       </div>
 
       <Sheet
