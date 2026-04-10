@@ -248,6 +248,14 @@ curl -X POST http://127.0.0.1:5000/api/chatbot \
 - Add authentication, user accounts, and portfolio ownership.
 
 **Update Log**
+April 10, 2026
+- Moved the profile card edit action so it sits beside the delete action, fixing the floating middle icon layout on the Profiles page.
+- Simplified the Map page structure by removing the extra page intro, moving Active Profile into the left controls panel, and flattening the map header so it behaves more like a workspace card than a second page header.
+- Hid visible scrollbar chrome on the sticky Map side panels while preserving scrolling behavior.
+- Moved Portfolio's compare action into the top-right page action area and tightened the top control row layout.
+- Simplified Compare's page intro by moving scope and prepared-on metadata into the first content card.
+- Simplified Admin's page title and top stat cards so they align more closely with the dashboard-style label/value pattern.
+
 April 9, 2026
 - Standardized the map page top layout so the header, toolbar, and status strip align more closely with the rest of the app.
 - Strengthened hover states across shared buttons and dropdowns for clearer clickability throughout the UI.

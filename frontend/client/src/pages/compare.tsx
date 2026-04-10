@@ -574,20 +574,18 @@ export default function Compare() {
     <AppShell
       title="Compare"
       right={
-        <div className="flex items-center gap-2">
-          <Button
-            variant="secondary"
-            className="gap-2"
-            onClick={() => {
-              void exportComparisonPdf();
-            }}
-            disabled={selectedSites.length < 2 || exporting}
-            data-testid="button-export-pdf"
-          >
-            <Download className="h-4 w-4" aria-hidden="true" />
-            {exporting ? "Exporting..." : "Export PDF"}
-          </Button>
-        </div>
+        <Button
+          variant="secondary"
+          className="gap-2"
+          onClick={() => {
+            void exportComparisonPdf();
+          }}
+          disabled={selectedSites.length < 2 || exporting}
+          data-testid="button-export-pdf"
+        >
+          <Download className="h-4 w-4" aria-hidden="true" />
+          {exporting ? "Exporting..." : "Export PDF"}
+        </Button>
       }
     >
       <div className="space-y-6">
@@ -595,12 +593,6 @@ export default function Compare() {
           <h1 className="text-2xl font-semibold tracking-tight" data-testid="text-compare-title">Compare Sites</h1>
           <p className="mt-1 text-sm text-muted-foreground" data-testid="text-compare-subtitle">
             Compare 2-3 candidate sites side-by-side, even across different profiles.
-          </p>
-          <p className="mt-1 text-xs text-muted-foreground" data-testid="text-compare-active-profile">
-            Scope: {comparisonProfile?.name ?? (selectedSites.length > 0 ? "Multiple profiles" : activeProfile?.name ?? "All saved sites")}
-          </p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Prepared on: {exportTimestamp}
           </p>
         </div>
 
@@ -631,6 +623,12 @@ export default function Compare() {
                 </SelectContent>
               </Select>
             </div>
+          </div>
+          <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
+            <span data-testid="text-compare-active-profile">
+              Scope: {comparisonProfile?.name ?? (selectedSites.length > 0 ? "Multiple profiles" : activeProfile?.name ?? "All saved sites")}
+            </span>
+            <span>Prepared on: {exportTimestamp}</span>
           </div>
           {availableSites.length === 0 ? (
             <div className="mt-3 rounded-xl border bg-muted/30 p-3 text-sm text-muted-foreground" data-testid="status-no-sites-for-profile">

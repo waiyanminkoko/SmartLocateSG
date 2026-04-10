@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { DatabaseZap, RefreshCcw, ShieldCheck, Trash2 } from "lucide-react";
+import { RefreshCcw, Trash2 } from "lucide-react";
 
 import { AppShell } from "@/components/app-shell";
 import { Badge } from "@/components/ui/badge";
@@ -104,7 +104,7 @@ export default function Admin() {
     >
       <div className="space-y-6">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight" data-testid="text-admin-title">Data Status</h1>
+          <h1 className="text-2xl font-semibold tracking-tight" data-testid="text-admin-title">Admin</h1>
           <p className="mt-1 text-sm text-muted-foreground" data-testid="text-admin-subtitle">
             Monitor data source freshness and trigger manual refreshes.
           </p>
@@ -112,24 +112,18 @@ export default function Admin() {
 
         <div className="grid gap-3 md:grid-cols-3">
           <Card className="border bg-card p-4 shadow-sm">
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <DatabaseZap className="h-4 w-4" aria-hidden="true" />
-              Sources connected
-            </div>
-            <div className="mt-2 text-2xl font-semibold">{sources.length}</div>
+            <div className="text-xs text-muted-foreground">Data sources</div>
+            <div className="mt-1 text-2xl font-semibold">{sources.length}</div>
           </Card>
           <Card className="border bg-card p-4 shadow-sm">
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <ShieldCheck className="h-4 w-4" aria-hidden="true" />
-              Healthy sources
-            </div>
-            <div className="mt-2 text-2xl font-semibold">
+            <div className="text-xs text-muted-foreground">Healthy sources</div>
+            <div className="mt-1 text-2xl font-semibold">
               {sources.filter((s) => s.status === "Healthy").length}
             </div>
           </Card>
           <Card className="border bg-card p-4 shadow-sm">
             <div className="text-xs text-muted-foreground">Next scheduled run</div>
-            <div className="mt-2 text-2xl font-semibold">Manual</div>
+            <div className="mt-1 text-2xl font-semibold">Manual</div>
           </Card>
         </div>
 

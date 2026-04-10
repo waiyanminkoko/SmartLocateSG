@@ -570,46 +570,48 @@ export default function Profiles() {
                     <div className="mt-1 text-xs text-muted-foreground" data-testid={`text-profile-sector-${p.id}`}>{p.sector}</div>
                   </div>
 
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => openEdit(p)}
-                    className="text-blue-600 hover:bg-blue-50 hover:text-blue-700"
-                    data-testid={`button-edit-profile-${p.id}`}
-                  >
-                    <Pencil className="h-4 w-4" aria-hidden="true" />
-                  </Button>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => openEdit(p)}
+                      className="text-blue-600 hover:bg-blue-50 hover:text-blue-700"
+                      data-testid={`button-edit-profile-${p.id}`}
+                    >
+                      <Pencil className="h-4 w-4" aria-hidden="true" />
+                    </Button>
 
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="text-red-600 hover:bg-red-50 hover:text-red-700"
-                        data-testid={`button-delete-profile-${p.id}`}
-                      >
-                        <Trash2 className="h-4 w-4" aria-hidden="true" />
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle data-testid="text-delete-title">Delete profile?</AlertDialogTitle>
-                        <AlertDialogDescription data-testid="text-delete-desc">
-                          This deletes the profile and linked candidate sites.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel data-testid="button-cancel-delete">Cancel</AlertDialogCancel>
-                        <AlertDialogAction
-                          onClick={() => remove(p.id)}
-                          className="bg-red-600 hover:bg-red-700"
-                          data-testid="button-confirm-delete"
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="text-red-600 hover:bg-red-50 hover:text-red-700"
+                          data-testid={`button-delete-profile-${p.id}`}
                         >
-                          Delete
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
+                          <Trash2 className="h-4 w-4" aria-hidden="true" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle data-testid="text-delete-title">Delete profile?</AlertDialogTitle>
+                          <AlertDialogDescription data-testid="text-delete-desc">
+                            This deletes the profile and linked candidate sites.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel data-testid="button-cancel-delete">Cancel</AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={() => remove(p.id)}
+                            className="bg-red-600 hover:bg-red-700"
+                            data-testid="button-confirm-delete"
+                          >
+                            Delete
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </div>
                 </div>
 
                 <div className="mt-4 grid gap-2 text-sm">

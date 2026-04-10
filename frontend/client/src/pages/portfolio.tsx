@@ -518,7 +518,14 @@ export default function Portfolio() {
   };
 
   return (
-    <AppShell title="Portfolio">
+    <AppShell
+      title="Portfolio"
+      right={
+        <Button variant="secondary" onClick={compareSelected} data-testid="button-go-compare">
+          Compare selected ({selectedIds.length})
+        </Button>
+      }
+    >
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight" data-testid="text-portfolio-title">Portfolio</h1>
@@ -527,7 +534,7 @@ export default function Portfolio() {
           </p>
         </div>
 
-        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+        <div className="flex flex-col gap-3 md:gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex w-full flex-col gap-2 md:flex-row md:items-center md:gap-3">
             <div className="relative w-full md:max-w-sm">
               <Input
@@ -551,12 +558,11 @@ export default function Portfolio() {
               </SelectContent>
             </Select>
           </div>
-          <Button variant="secondary" onClick={compareSelected} data-testid="button-go-compare">
-            Compare selected ({selectedIds.length})
-          </Button>
-          <Button variant="outline" onClick={explainWithChatbot} data-testid="button-portfolio-explain-score">
-            Explain score
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" onClick={explainWithChatbot} data-testid="button-portfolio-explain-score">
+              Explain score
+            </Button>
+          </div>
         </div>
 
         {focusSite ? (

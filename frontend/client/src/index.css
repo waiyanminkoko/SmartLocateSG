@@ -547,6 +547,15 @@
     transition: padding-right 220ms ease;
   }
 
+  .map-panel-scroll {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .map-panel-scroll::-webkit-scrollbar {
+    display: none;
+  }
+
   @media (min-width: 1024px) {
     body.map-sidepanel-open .map-page-grid-wrap.is-sidepanel-open {
       padding-right: min(36rem, 45vw);

@@ -2634,47 +2634,15 @@ export default function MapPage() {
   }, [apiKey, mapStyleId, toast]);
 
   return (
-    <AppShell
-      title="Map"
-      right={
-        <div className="hidden lg:flex items-center gap-2">
-          <div className="whitespace-nowrap text-xs font-medium text-muted-foreground">Active profile</div>
-          <Select value={activeProfileId} onValueChange={handleProfileChange}>
-            <SelectTrigger
-              className="h-9 w-[168px] bg-background/90 text-xs [&>span]:truncate"
-              disabled={profiles.length === 0}
-              data-testid="select-header-active-profile"
-            >
-              <SelectValue placeholder={profiles.length === 0 ? "No profiles" : "Select a profile"} />
-            </SelectTrigger>
-            <SelectContent>
-              {profiles.map((p) => (
-                <SelectItem key={p.id} value={p.id} data-testid={`select-item-header-profile-${p.id}`}>
-                  {p.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      }
-    >
-      <div
-        className="space-y-6"
-      >
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight" data-testid="text-map-page-title">Map</h1>
-          <p className="mt-1 text-sm text-muted-foreground" data-testid="text-map-page-subtitle">
-            Explore planning-area overlays, score candidate sites, and inspect nearby transport context.
-          </p>
-        </div>
-
+    <AppShell title="Map">
+      <div>
         <div
           className={`map-page-grid-wrap transition-[padding-right] duration-200 ${
             isAnySidePanelOpen ? "is-sidepanel-open" : ""
           }`}
         >
         <div className="grid gap-3 lg:items-start lg:grid-cols-[360px_minmax(0,1fr)_360px] xl:grid-cols-[380px_minmax(0,1fr)_380px]">
-        <Card className="border bg-card p-4 shadow-sm lg:sticky lg:top-24 lg:max-h-[calc(100vh-120px)] lg:overflow-y-auto">
+        <Card className="map-panel-scroll border bg-card p-4 shadow-sm lg:sticky lg:top-24 lg:max-h-[calc(100vh-120px)] lg:overflow-y-auto">
           <div className="space-y-4">
             <div>
               <div className="text-sm font-semibold" data-testid="text-map-controls-title">Controls</div>
@@ -2683,7 +2651,7 @@ export default function MapPage() {
               </div>
             </div>
 
-            <div className="space-y-2 rounded-xl border bg-muted/10 p-3 lg:hidden">
+            <div className="space-y-2 rounded-xl border bg-muted/10 p-3">
               <div>
                 <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Active profile</div>
                 <div className="mt-1 text-[11px] text-muted-foreground">
@@ -2693,13 +2661,13 @@ export default function MapPage() {
               <Select value={activeProfileId} onValueChange={handleProfileChange}>
                 <SelectTrigger
                   disabled={profiles.length === 0}
-                  data-testid="select-active-profile-mobile"
+                  data-testid="select-active-profile"
                 >
                   <SelectValue placeholder={profiles.length === 0 ? "No profiles" : "Select a profile"} />
                 </SelectTrigger>
                 <SelectContent>
                   {profiles.map((p) => (
-                    <SelectItem key={p.id} value={p.id} data-testid={`select-item-profile-mobile-${p.id}`}>
+                    <SelectItem key={p.id} value={p.id} data-testid={`select-item-profile-${p.id}`}>
                       {p.name}
                     </SelectItem>
                   ))}
@@ -3094,12 +3062,9 @@ export default function MapPage() {
         </Card>
 
         <Card className="flex flex-col overflow-hidden border bg-card p-0 shadow-sm lg:sticky lg:top-24 lg:min-h-[560px] lg:h-[calc(100vh-120px)]" data-testid="map-canvas">
-          <div className="flex items-start justify-between gap-3 border-b px-4 py-3 shrink-0">
-            <div>
+          <div className="flex flex-wrap items-center justify-between gap-3 px-4 pt-3 pb-2 shrink-0">
+            <div className="min-w-0 flex-1">
               <div className="text-sm font-semibold" data-testid="text-map-title">Singapore map</div>
-              <div className="mt-1 text-xs text-muted-foreground">
-                Search, pin, and inspect live map context around a candidate site.
-              </div>
             </div>
             <div className="flex flex-wrap items-center justify-end gap-2">
               <Button
@@ -3157,20 +3122,6 @@ export default function MapPage() {
               </Button>
             </div>
           </div>
-          <div className="flex flex-wrap items-center gap-2 border-b bg-background/60 px-4 py-2 text-[11px] text-muted-foreground">
-            <span className="rounded-md bg-muted/30 px-2 py-1">
-              Mode: <span className="text-foreground">{mapMode === "overview" ? "Overview" : "Focus"}</span>
-            </span>
-            <span className="rounded-md bg-muted/30 px-2 py-1">
-              Overlay: <span className="text-foreground">{overlayVisible ? overlay : `${overlay} hidden`}</span>
-            </span>
-            <span className="rounded-md bg-muted/30 px-2 py-1">
-              Scenario: <span className="text-foreground">{scenario}</span>
-            </span>
-            <span className="rounded-md bg-muted/30 px-2 py-1">
-              Radius: <span className="text-foreground">{formatRadiusLabel(focusRadiusMeters)}</span>
-            </span>
-          </div>
           <div className="relative flex-1">
             <div ref={mapContainerRef} className="h-full w-full min-h-[360px]" data-testid="map-container" />
             <div className="pointer-events-none absolute bottom-3 left-3 inline-flex items-center gap-2 rounded-full border bg-card/90 px-3 py-1 text-xs text-muted-foreground shadow-sm">
@@ -3197,7 +3148,7 @@ export default function MapPage() {
           </div>
         </Card>
 
-        <Card className="border bg-card p-4 shadow-sm lg:sticky lg:top-24 lg:max-h-[calc(100vh-120px)] lg:overflow-y-auto">
+        <Card className="map-panel-scroll border bg-card p-4 shadow-sm lg:sticky lg:top-24 lg:max-h-[calc(100vh-120px)] lg:overflow-y-auto">
           <div className="space-y-4">
             <div className="rounded-xl border bg-muted/20 p-3" data-testid="card-selected-site">
               <div className="text-sm font-semibold">Selected site</div>
