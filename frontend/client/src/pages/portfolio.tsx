@@ -521,7 +521,12 @@ export default function Portfolio() {
     <AppShell
       title="Portfolio"
       right={
-        <Button variant="secondary" onClick={compareSelected} data-testid="button-go-compare">
+        <Button
+          variant="secondary"
+          className="border bg-white hover:bg-white"
+          onClick={compareSelected}
+          data-testid="button-go-compare"
+        >
           Compare selected ({selectedIds.length})
         </Button>
       }
@@ -541,11 +546,12 @@ export default function Portfolio() {
                 placeholder="Filter by name or address"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
+                className="bg-white"
                 data-testid="input-portfolio-filter"
               />
             </div>
             <Select value={profileFilter} onValueChange={setProfileFilter}>
-              <SelectTrigger className="w-full md:w-56" data-testid="select-profile-filter">
+              <SelectTrigger className="w-full bg-white md:w-56" data-testid="select-profile-filter">
                 <SelectValue placeholder="All profiles" />
               </SelectTrigger>
               <SelectContent>
@@ -559,7 +565,12 @@ export default function Portfolio() {
             </Select>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Button variant="outline" onClick={explainWithChatbot} data-testid="button-portfolio-explain-score">
+            <Button
+              variant="outline"
+              className="border bg-white hover:bg-white"
+              onClick={explainWithChatbot}
+              data-testid="button-portfolio-explain-score"
+            >
               Explain score
             </Button>
           </div>
