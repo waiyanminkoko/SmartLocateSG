@@ -56,10 +56,11 @@ export function AppShell({
                 </div>
                 <div className="leading-tight">
                   <div
-                    className="text-sm font-semibold uppercase tracking-[0.08em] text-[hsl(var(--foreground)/0.76)]"
+                    className="text-xs font-semibold uppercase tracking-[0.08em] text-[hsl(var(--foreground)/0.76)]"
                     data-testid="text-brand"
                   >
-                    SmartLocate SG
+                    <span className="block">SmartLocate</span>
+                    <span className="block">SG</span>
                   </div>
                   <div className="text-xs text-muted-foreground" data-testid="text-brand-sub">
                     {title}
@@ -76,7 +77,7 @@ export function AppShell({
                       <Button
                         variant={active ? "secondary" : "ghost"}
                         className={cn(
-                          "workspace-nav-pill h-10 rounded-full px-4",
+                          "workspace-nav-pill h-10 rounded-full px-4 text-xs",
                           active && "workspace-nav-pill-active font-semibold",
                         )}
                         data-testid={`button-nav-${item.label.toLowerCase()}`}
@@ -90,7 +91,7 @@ export function AppShell({
               </div>
             </div>
 
-            <div className="flex items-center gap-2 self-start lg:self-auto">
+            <div className="flex items-center gap-2 self-start lg:self-auto [&_button]:text-xs">
               {right}
 
               <DropdownMenu>
@@ -98,7 +99,7 @@ export function AppShell({
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="workspace-nav-pill h-10 max-w-[220px] rounded-full border border-[hsl(var(--card-border)/0.72)] bg-[hsl(var(--card)/0.66)] px-4"
+                    className="workspace-nav-pill h-10 max-w-55 rounded-full border border-[hsl(var(--card-border)/0.72)] bg-[hsl(var(--card)/0.66)] px-4 text-xs"
                     data-testid="button-user-menu"
                   >
                     <LayoutGrid className="h-4 w-4 shrink-0" aria-hidden="true" />
@@ -128,7 +129,7 @@ export function AppShell({
                   <Button
                     variant={active ? "secondary" : "ghost"}
                     className={cn(
-                      "workspace-nav-pill h-10 shrink-0 rounded-full px-4",
+                      "workspace-nav-pill h-10 shrink-0 rounded-full px-4 text-xs",
                       active && "workspace-nav-pill-active font-semibold",
                     )}
                     data-testid={`button-nav-mobile-${item.label.toLowerCase()}`}
