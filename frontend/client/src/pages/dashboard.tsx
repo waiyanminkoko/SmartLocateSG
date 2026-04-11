@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { Link } from "wouter";
-import { Plus, Scale, Map as MapIcon } from "lucide-react";
+import { Map as MapIcon, Plus, Scale } from "lucide-react";
 
 import { AppShell } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
@@ -15,9 +15,13 @@ const SITES_CACHE_TTL_MS = 60 * 1000;
 
 function Stat({ label, value, testid }: { label: string; value: string; testid: string }) {
   return (
-    <div className="rounded-xl border bg-card p-4 shadow-sm">
-      <div className="text-xs text-muted-foreground" data-testid={`text-stat-label-${testid}`}>{label}</div>
-      <div className="mt-1 text-2xl font-semibold tracking-tight" data-testid={`text-stat-value-${testid}`}>{value}</div>
+    <div className="workspace-panel workspace-hover-card p-5">
+      <div className="workspace-kicker" data-testid={`text-stat-label-${testid}`}>
+        {label}
+      </div>
+      <div className="mt-3 text-3xl font-semibold tracking-tight" data-testid={`text-stat-value-${testid}`}>
+        {value}
+      </div>
     </div>
   );
 }
@@ -142,7 +146,7 @@ export default function Dashboard() {
       title="Dashboard"
       right={
         <Link href="/profiles/new">
-          <Button className="gap-2" data-testid="button-create-profile">
+          <Button className="workspace-pill-button gap-2" data-testid="button-create-profile">
             <Plus className="h-4 w-4" aria-hidden="true" />
             Create Business Profile
           </Button>
@@ -150,12 +154,30 @@ export default function Dashboard() {
       }
     >
       <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight" data-testid="text-dashboard-title">Dashboard</h1>
-          <p className="mt-1 text-sm text-muted-foreground" data-testid="text-dashboard-subtitle">
-            Quick starting points for map scoring and comparison.
-          </p>
-        </div>
+        <section className="workspace-page-header">
+          <div className="workspace-page-header-grid">
+            <div>
+              <div className="workspace-kicker">Workspace overview</div>
+              <h1 className="workspace-page-title mt-4" data-testid="text-dashboard-title">
+                Dashboard
+              </h1>
+              <p className="workspace-page-lead" data-testid="text-dashboard-subtitle">
+                Quick starting points for map scoring and comparison.
+              </p>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="workspace-inline-stat">
+                <div className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Active workflow</div>
+                <div className="mt-2 text-lg font-semibold">Profiles, map, and comparison</div>
+              </div>
+              <div className="workspace-inline-stat">
+                <div className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Current readiness</div>
+                <div className="mt-2 text-lg font-semibold">{scopedSites.length >= 2 ? "Comparison ready" : "Build shortlist"}</div>
+              </div>
+            </div>
+          </div>
+        </section>
 
         <div className="grid gap-3 md:grid-cols-3">
           <Stat label="Business profiles" value={String(profiles.length)} testid="profiles" />
@@ -163,70 +185,78 @@ export default function Dashboard() {
           <Stat label="Ready for comparison" value={scopedSites.length >= 2 ? "Yes" : "No"} testid="compare" />
         </div>
 
-        <div className="grid gap-3 md:grid-cols-2">
-          <Card className="border bg-card p-5 shadow-sm">
+        <div className="grid gap-4 lg:grid-cols-2">
+          <Card className="workspace-surface workspace-hover-card rounded-[1.75rem] border p-6">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <div className="text-sm font-semibold" data-testid="text-recent-profiles-title">Recent profiles</div>
-                <div className="mt-1 text-xs text-muted-foreground" data-testid="text-recent-profiles-sub">
+                <div className="workspace-kicker" data-testid="text-recent-profiles-title">
+                  Recent profiles
+                </div>
+                <div className="mt-2 text-sm text-muted-foreground" data-testid="text-recent-profiles-sub">
                   Select a profile before scoring.
                 </div>
               </div>
               <Link href="/profiles">
-                <Button variant="secondary" size="sm" data-testid="button-manage-profiles">Manage</Button>
+                <Button variant="secondary" size="sm" data-testid="button-manage-profiles">
+                  Manage
+                </Button>
               </Link>
             </div>
 
             {profiles.length === 0 ? (
-              <div className="mt-4 rounded-xl border bg-muted/30 p-4 text-sm text-muted-foreground" data-testid="empty-profiles">
+              <div className="workspace-empty-state mt-5" data-testid="empty-profiles">
                 Create your first business profile to start scoring locations.
               </div>
             ) : (
-              <div className="mt-4 space-y-2">
-                {profiles.slice(0, 3).map((p) => (
+              <div className="mt-5 space-y-3">
+                {profiles.slice(0, 3).map((profile) => (
                   <div
-                    key={p.id}
-                    className="flex items-center justify-between rounded-xl border bg-card px-3 py-2"
-                    data-testid={`row-profile-${p.id}`}
+                    key={profile.id}
+                    className="workspace-list-row flex items-center justify-between gap-3"
+                    data-testid={`row-profile-${profile.id}`}
                   >
                     <div>
-                      <div className="text-sm font-medium" data-testid={`text-profile-name-${p.id}`}>{p.name}</div>
-                      <div className="text-xs text-muted-foreground" data-testid={`text-profile-meta-${p.id}`}>
-                        {p.sector} • {p.priceBand}
+                      <div className="text-sm font-medium" data-testid={`text-profile-name-${profile.id}`}>
+                        {profile.name}
+                      </div>
+                      <div className="text-xs text-muted-foreground" data-testid={`text-profile-meta-${profile.id}`}>
+                        {profile.sector} | {profile.priceBand}
                       </div>
                     </div>
-                    <div className="text-xs text-muted-foreground" data-testid={`text-profile-updated-${p.id}`}>{p.updatedAt}</div>
+                    <div className="text-xs text-muted-foreground" data-testid={`text-profile-updated-${profile.id}`}>
+                      {profile.updatedAt}
+                    </div>
                   </div>
                 ))}
               </div>
             )}
           </Card>
 
-          <Card className="border bg-card p-5 shadow-sm">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <div className="text-sm font-semibold" data-testid="text-quick-actions-title">Quick actions</div>
-                <div className="mt-1 text-xs text-muted-foreground" data-testid="text-quick-actions-sub">
-                  Jump into scoring and comparison.
-                </div>
+          <Card className="workspace-surface workspace-hover-card rounded-[1.75rem] border p-6">
+            <div>
+              <div className="workspace-kicker" data-testid="text-quick-actions-title">
+                Quick actions
+              </div>
+              <div className="mt-2 text-sm text-muted-foreground" data-testid="text-quick-actions-sub">
+                Jump into scoring and comparison.
               </div>
             </div>
 
-            <div className="mt-4 grid gap-2">
+            <div className="mt-5 grid gap-3">
               <Link href="/map">
-                <Button variant="secondary" className="justify-between" data-testid="button-open-map">
+                <Button variant="secondary" className="h-12 justify-between rounded-2xl px-4" data-testid="button-open-map">
                   <span className="inline-flex items-center gap-2">
                     <MapIcon className="h-4 w-4" aria-hidden="true" />
                     Open Map
                   </span>
-                  <span className="text-muted-foreground">↵</span>
+                  <span className="text-muted-foreground">Map</span>
                 </Button>
               </Link>
 
               <Link href="/compare">
                 <Button
                   variant="secondary"
-                  className="justify-between"
+                  className="h-12 justify-between rounded-2xl px-4"
                   disabled={scopedSites.length < 2}
                   data-testid="button-compare-sites"
                 >
@@ -234,47 +264,57 @@ export default function Dashboard() {
                     <Scale className="h-4 w-4" aria-hidden="true" />
                     Compare Sites
                   </span>
-                  <span className="text-muted-foreground">{scopedSites.length < 2 ? "Need 2+" : "↵"}</span>
+                  <span className="text-muted-foreground">{scopedSites.length < 2 ? "Need 2+" : "Ready"}</span>
                 </Button>
               </Link>
 
-              <div className="rounded-xl border bg-muted/30 p-3 text-xs text-muted-foreground" data-testid="text-dashboard-note">
+              <div className="workspace-panel-muted text-xs text-muted-foreground" data-testid="text-dashboard-note">
                 Scores and map layers reflect the currently available data sources and fallbacks.
               </div>
             </div>
           </Card>
         </div>
 
-        <Card className="border bg-card p-5 shadow-sm">
+        <Card className="workspace-surface workspace-hover-card rounded-[1.75rem] border p-6">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <div className="text-sm font-semibold" data-testid="text-recent-sites-title">Recent candidate sites</div>
-              <div className="mt-1 text-xs text-muted-foreground" data-testid="text-recent-sites-sub">
+              <div className="workspace-kicker" data-testid="text-recent-sites-title">
+                Recent candidate sites
+              </div>
+              <div className="mt-2 text-sm text-muted-foreground" data-testid="text-recent-sites-sub">
                 Latest saved locations across profiles.
               </div>
             </div>
             <Link href="/portfolio">
-              <Button variant="secondary" size="sm" data-testid="button-view-portfolio">View all</Button>
+              <Button variant="secondary" size="sm" data-testid="button-view-portfolio">
+                View all
+              </Button>
             </Link>
           </div>
 
           {scopedSites.length === 0 ? (
-            <div className="mt-4 rounded-xl border bg-muted/30 p-4 text-sm text-muted-foreground" data-testid="empty-sites">
+            <div className="workspace-empty-state mt-5" data-testid="empty-sites">
               Save a site from the map to build your portfolio.
             </div>
           ) : (
-            <div className="mt-4 space-y-2">
-              {scopedSites.slice(0, 3).map((s) => (
+            <div className="mt-5 space-y-3">
+              {scopedSites.slice(0, 3).map((site) => (
                 <div
-                  key={s.id}
-                  className="flex items-center justify-between rounded-xl border bg-card px-3 py-2"
-                  data-testid={`row-site-${s.id}`}
+                  key={site.id}
+                  className="workspace-list-row flex items-center justify-between gap-3"
+                  data-testid={`row-site-${site.id}`}
                 >
                   <div>
-                    <div className="text-sm font-medium" data-testid={`text-site-name-${s.id}`}>{getCandidateSiteDisplayName(s)}</div>
-                    <div className="text-xs text-muted-foreground" data-testid={`text-site-address-${s.id}`}>{s.address}</div>
+                    <div className="text-sm font-medium" data-testid={`text-site-name-${site.id}`}>
+                      {getCandidateSiteDisplayName(site)}
+                    </div>
+                    <div className="text-xs text-muted-foreground" data-testid={`text-site-address-${site.id}`}>
+                      {site.address}
+                    </div>
                   </div>
-                  <div className="text-xs text-muted-foreground" data-testid={`text-site-saved-${s.id}`}>{s.savedAt}</div>
+                  <div className="text-xs text-muted-foreground" data-testid={`text-site-saved-${site.id}`}>
+                    {site.savedAt}
+                  </div>
                 </div>
               ))}
             </div>

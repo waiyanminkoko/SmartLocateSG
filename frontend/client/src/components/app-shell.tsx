@@ -5,8 +5,8 @@ import {
   LogOut,
   Map,
   MapPinned,
-  ShieldCheck,
   Scale,
+  ShieldCheck,
   SquareStack,
   Users,
 } from "lucide-react";
@@ -45,68 +45,81 @@ export function AppShell({
   const brandLogoSrc = "/SmartLocateSG_Logo.png";
 
   return (
-    <div className="app-shell">
-      <header className="sticky top-0 z-20 border-b bg-background/70 backdrop-blur">
-        <div className="page-container flex items-center justify-between gap-3 py-3">
-          <div className="flex items-center gap-3">
-            <Link href="/dashboard" className="flex items-center gap-2" data-testid="link-home">
-              <div className="grid size-9 place-items-center overflow-hidden rounded-full border bg-card p-1 shadow-sm">
-                <img src={brandLogoSrc} alt="SmartLocate SG logo" className="h-full w-full object-contain" />
-              </div>
-              <div className="leading-tight">
-                <div className="text-sm font-semibold" data-testid="text-brand">
-                  SmartLocate SG
+    <div className="app-shell workspace-page">
+      <header className="workspace-shell-header sticky top-0 z-20 border-b">
+        <div className="page-container py-4">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center">
+              <Link href="/dashboard" className="flex items-center gap-3" data-testid="link-home">
+                <div className="workspace-brand-mark size-11">
+                  <img src={brandLogoSrc} alt="SmartLocate SG logo" className="h-full w-full object-contain" />
                 </div>
-                <div className="text-xs text-muted-foreground" data-testid="text-brand-sub">
-                  Workspace
+                <div className="leading-tight">
+                  <div
+                    className="text-sm font-semibold uppercase tracking-[0.08em] text-[hsl(var(--foreground)/0.76)]"
+                    data-testid="text-brand"
+                  >
+                    SmartLocate SG
+                  </div>
+                  <div className="text-xs text-muted-foreground" data-testid="text-brand-sub">
+                    {title}
+                  </div>
                 </div>
-              </div>
-            </Link>
+              </Link>
 
-            <div className="hidden items-center gap-1 md:flex">
-              {nav.map((item) => {
-                const active = location === item.href;
-                const Icon = item.icon;
-                return (
-                  <Link key={item.href} href={item.href} data-testid={`link-nav-${item.label.toLowerCase()}`}>
-                    <Button
-                      variant={active ? "secondary" : "ghost"}
-                      className={cn("h-9 gap-2", active && "font-semibold")}
-                      data-testid={`button-nav-${item.label.toLowerCase()}`}
-                    >
-                      <Icon className="h-4 w-4" aria-hidden="true" />
-                      {item.label}
-                    </Button>
-                  </Link>
-                );
-              })}
+              <div className="hidden items-center gap-2 lg:flex">
+                {nav.map((item) => {
+                  const active = location === item.href;
+                  const Icon = item.icon;
+                  return (
+                    <Link key={item.href} href={item.href} data-testid={`link-nav-${item.label.toLowerCase()}`}>
+                      <Button
+                        variant={active ? "secondary" : "ghost"}
+                        className={cn(
+                          "workspace-nav-pill h-10 rounded-full px-4",
+                          active && "workspace-nav-pill-active font-semibold",
+                        )}
+                        data-testid={`button-nav-${item.label.toLowerCase()}`}
+                      >
+                        <Icon className="h-4 w-4" aria-hidden="true" />
+                        {item.label}
+                      </Button>
+                    </Link>
+                  );
+                })}
+              </div>
             </div>
-          </div>
 
-          <div className="flex items-center gap-2">
-            {right}
+            <div className="flex items-center gap-2 self-start lg:self-auto">
+              {right}
 
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className="gap-2 max-w-[180px] truncate" data-testid="button-user-menu">
-                  <LayoutGrid className="h-4 w-4 shrink-0" aria-hidden="true" />
-                  <span className="truncate">{user?.email ?? "Account"}</span>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <div className="px-2 py-1.5 text-xs text-muted-foreground">{user?.email}</div>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={signOut} data-testid="button-sign-out">
-                  <LogOut className="mr-2 h-4 w-4" aria-hidden="true" />
-                  Sign out
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="workspace-nav-pill h-10 max-w-[220px] rounded-full border border-[hsl(var(--card-border)/0.72)] bg-[hsl(var(--card)/0.66)] px-4"
+                    data-testid="button-user-menu"
+                  >
+                    <LayoutGrid className="h-4 w-4 shrink-0" aria-hidden="true" />
+                    <span className="truncate">{user?.email ?? "Account"}</span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <div className="px-2 py-1.5 text-xs text-muted-foreground">{user?.email}</div>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={signOut} data-testid="button-sign-out">
+                    <LogOut className="mr-2 h-4 w-4" aria-hidden="true" />
+                    Sign out
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           </div>
         </div>
 
-        <div className="border-t md:hidden">
-          <div className="page-container flex items-center gap-1 overflow-x-auto py-2">
+        <div className="border-t border-[hsl(var(--border)/0.72)] lg:hidden">
+          <div className="page-container flex items-center gap-2 overflow-x-auto py-3">
             {nav.map((item) => {
               const active = location === item.href;
               const Icon = item.icon;
@@ -114,7 +127,10 @@ export function AppShell({
                 <Link key={item.href} href={item.href} data-testid={`link-nav-mobile-${item.label.toLowerCase()}`}>
                   <Button
                     variant={active ? "secondary" : "ghost"}
-                    className={cn("h-9 shrink-0 gap-2", active && "font-semibold")}
+                    className={cn(
+                      "workspace-nav-pill h-10 shrink-0 rounded-full px-4",
+                      active && "workspace-nav-pill-active font-semibold",
+                    )}
                     data-testid={`button-nav-mobile-${item.label.toLowerCase()}`}
                   >
                     <Icon className="h-4 w-4" aria-hidden="true" />
@@ -127,11 +143,11 @@ export function AppShell({
         </div>
       </header>
 
-      <main className="page-container py-8">{children}</main>
+      <main className="page-container workspace-main">{children}</main>
 
-      <footer className="page-container pb-10">
-        <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
-          <div data-testid="text-footer-left">SmartLocate SG • Data sources: OneMap, SingStat, LTA, URA</div>
+      <footer className="page-container pb-8 lg:pb-10">
+        <div className="workspace-shell-footer flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground">
+          <div data-testid="text-footer-left">SmartLocate SG | Data sources: OneMap, SingStat, LTA, URA</div>
           <div className="flex items-center gap-2" data-testid="text-footer-right">
             <span className="inline-flex items-center gap-1">
               <MapPinned className="h-3.5 w-3.5" aria-hidden="true" />

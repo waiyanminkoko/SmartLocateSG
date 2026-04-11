@@ -361,28 +361,37 @@ export default function ProfileWizard() {
   return (
     <AppShell title="Create Profile">
       <div className="mx-auto max-w-3xl space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight" data-testid="text-wizard-title">
-              Business Profile Wizard
-            </h1>
-            <p className="mt-1 text-sm text-muted-foreground" data-testid="text-wizard-subtitle">
-              Step {step} of 4: {stepTitles[step - 1]}
-            </p>
+        <section className="workspace-page-header">
+          <div className="workspace-page-header-grid">
+            <div>
+              <div className="workspace-kicker">Profile setup</div>
+              <h1 className="workspace-page-title mt-4" data-testid="text-wizard-title">
+                Business Profile Wizard
+              </h1>
+              <p className="workspace-page-lead" data-testid="text-wizard-subtitle">
+                Step {step} of 4: {stepTitles[step - 1]}
+              </p>
+            </div>
+            <div className="space-y-3">
+              <div className="workspace-inline-stat">
+                <div className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Current step</div>
+                <div className="mt-2 text-lg font-semibold">{stepTitles[step - 1]}</div>
+              </div>
+              <div className="flex gap-2">
+                {[1, 2, 3, 4].map((s) => (
+                  <div
+                    key={s}
+                    className={`h-2 w-10 rounded-full transition-colors ${
+                      s <= step ? "bg-primary" : "bg-[hsl(var(--foreground)/0.1)]"
+                    }`}
+                  />
+                ))}
+              </div>
+            </div>
           </div>
-          <div className="flex gap-1">
-            {[1, 2, 3, 4].map((s) => (
-              <div
-                key={s}
-                className={`h-1.5 w-8 rounded-full transition-colors ${
-                  s <= step ? "bg-primary" : "bg-muted"
-                }`}
-              />
-            ))}
-          </div>
-        </div>
+        </section>
 
-        <Card className="border bg-card p-6 shadow-sm">
+        <Card className="workspace-surface rounded-[1.75rem] border p-6 shadow-none sm:p-7">
           <form
             onSubmit={(event) => {
               event.preventDefault();
@@ -489,7 +498,7 @@ export default function ProfileWizard() {
                     {ageGroups.map((age) => (
                       <label
                         key={age}
-                        className="flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm hover:bg-muted/50"
+                        className="workspace-panel-muted flex cursor-pointer items-center gap-2 px-3 py-2 text-sm"
                       >
                         <Checkbox
                           checked={form.watch("ageGroups").includes(age)}
@@ -529,7 +538,7 @@ export default function ProfileWizard() {
                     {incomeBands.map((band) => (
                       <label
                         key={band.value}
-                        className="flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm hover:bg-muted/50"
+                        className="workspace-panel-muted flex cursor-pointer items-center gap-2 px-3 py-2 text-sm"
                       >
                         <Checkbox
                           checked={form.watch("incomeBands").includes(band.value)}
@@ -565,7 +574,7 @@ export default function ProfileWizard() {
                     {["Mixed", "Walk-in focused", "Delivery focused"].map((model) => (
                       <label
                         key={model}
-                        className="flex cursor-pointer items-center gap-3 rounded-lg border p-4 hover:bg-muted/50"
+                        className="workspace-panel-muted flex cursor-pointer items-center gap-3 p-4"
                       >
                         <RadioGroupItem value={model} />
                         <div className="space-y-0.5">
@@ -581,12 +590,12 @@ export default function ProfileWizard() {
             {step === 4 && (
               <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2">
                 <div className="space-y-1">
-                  <div className="text-sm font-semibold">Review summary</div>
+                  <div className="workspace-kicker">Review summary</div>
                   <div className="text-xs text-muted-foreground">
                     Confirm the profile details before saving.
                   </div>
                 </div>
-                <div className="rounded-xl border bg-card p-4 text-sm">
+                <div className="workspace-panel-muted text-sm">
                   <div className="grid gap-2">
                     <div className="flex items-center justify-between">
                       <span className="text-muted-foreground">Name</span>
@@ -631,13 +640,13 @@ export default function ProfileWizard() {
                     </div>
                   </div>
                 </div>
-                <div className="rounded-xl border bg-muted/30 p-3 text-xs text-muted-foreground">
+                <div className="workspace-panel-muted text-xs text-muted-foreground">
                   You can go back to edit any step before saving.
                 </div>
               </div>
             )}
 
-            <div className="flex items-center justify-between pt-4 border-t">
+            <div className="flex items-center justify-between border-t border-[hsl(var(--card-border)/0.72)] pt-4">
               <Button
                 type="button"
                 variant="ghost"

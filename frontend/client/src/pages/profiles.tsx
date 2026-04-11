@@ -539,7 +539,7 @@ export default function Profiles() {
       title="Business Profiles"
       right={
         <Link href="/profiles/new">
-          <Button className="gap-2" data-testid="button-create-profile-top">
+          <Button className="workspace-pill-button gap-2" data-testid="button-create-profile-top">
             <Plus className="h-4 w-4" aria-hidden="true" />
             Create Profile
           </Button>
@@ -547,15 +547,32 @@ export default function Profiles() {
       }
     >
       <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight" data-testid="text-profiles-title">Business Profiles</h1>
-          <p className="mt-1 text-sm text-muted-foreground" data-testid="text-profiles-subtitle">
-            Manage your business profiles for location scoring.
-          </p>
-        </div>
+        <section className="workspace-page-header">
+          <div className="workspace-page-header-grid">
+            <div>
+              <div className="workspace-kicker">Profile library</div>
+              <h1 className="workspace-page-title mt-4" data-testid="text-profiles-title">
+                Business Profiles
+              </h1>
+              <p className="workspace-page-lead" data-testid="text-profiles-subtitle">
+                Manage your business profiles for location scoring.
+              </p>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="workspace-inline-stat">
+                <div className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Saved profiles</div>
+                <div className="mt-2 text-lg font-semibold">{safeProfiles.length}</div>
+              </div>
+              <div className="workspace-inline-stat">
+                <div className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Active profile</div>
+                <div className="mt-2 text-lg font-semibold">{safeProfiles.find((profile) => profile.active)?.name ?? "None"}</div>
+              </div>
+            </div>
+          </div>
+        </section>
 
         {safeProfiles.length === 0 ? (
-          <Card className="border bg-card p-6 shadow-sm">
+          <Card className="workspace-surface rounded-[1.75rem] border p-6 shadow-none">
             <div className="text-sm text-muted-foreground" data-testid="empty-profiles-text">
               No profiles yet. Create your first business profile to start scoring.
             </div>
@@ -563,7 +580,11 @@ export default function Profiles() {
         ) : (
           <div className="grid gap-3 md:grid-cols-2">
             {safeProfiles.map((p) => (
-              <Card key={p.id} className="border bg-card p-5 shadow-sm" data-testid={`card-profile-${p.id}`}>
+              <Card
+                key={p.id}
+                className="workspace-surface workspace-hover-card rounded-[1.75rem] border p-5 shadow-none"
+                data-testid={`card-profile-${p.id}`}
+              >
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <div className="text-base font-semibold" data-testid={`text-profile-title-${p.id}`}>{p.name}</div>
@@ -615,23 +636,23 @@ export default function Profiles() {
                 </div>
 
                 <div className="mt-4 grid gap-2 text-sm">
-                  <div className="flex items-center justify-between" data-testid={`row-price-${p.id}`}>
+                  <div className="workspace-panel-muted flex items-center justify-between" data-testid={`row-price-${p.id}`}>
                     <span className="text-muted-foreground">Price</span>
                     <span className="font-medium" data-testid={`text-price-${p.id}`}>{p.priceBand}</span>
                   </div>
-                  <div className="flex items-center justify-between" data-testid={`row-ages-${p.id}`}>
+                  <div className="workspace-panel-muted flex items-center justify-between" data-testid={`row-ages-${p.id}`}>
                     <span className="text-muted-foreground">Ages</span>
                     <span className="font-medium" data-testid={`text-ages-${p.id}`}>{p.ageGroups.join(", ")}</span>
                   </div>
-                  <div className="flex items-center justify-between" data-testid={`row-income-${p.id}`}>
+                  <div className="workspace-panel-muted flex items-center justify-between" data-testid={`row-income-${p.id}`}>
                     <span className="text-muted-foreground">Income</span>
                     <span className="font-medium" data-testid={`text-income-${p.id}`}>{p.incomeBands.join(", ")}</span>
                   </div>
-                  <div className="flex items-center justify-between" data-testid={`row-operating-${p.id}`}>
+                  <div className="workspace-panel-muted flex items-center justify-between" data-testid={`row-operating-${p.id}`}>
                     <span className="text-muted-foreground">Reliance</span>
                     <span className="font-medium" data-testid={`text-operating-${p.id}`}>{p.operatingModel}</span>
                   </div>
-                  <div className="flex items-center justify-between" data-testid={`row-updated-${p.id}`}>
+                  <div className="workspace-panel-muted flex items-center justify-between" data-testid={`row-updated-${p.id}`}>
                     <span className="text-muted-foreground">Last updated</span>
                     <span className="font-medium" data-testid={`text-updated-${p.id}`}>{p.updatedAt}</span>
                   </div>
@@ -653,26 +674,27 @@ export default function Profiles() {
         )}
 
         {editingProfileId ? (
-          <Card className="border bg-card p-6 shadow-sm">
+          <Card className="workspace-surface rounded-[1.75rem] border p-6 shadow-none">
             <form
               onSubmit={(event) => {
                 event.preventDefault();
               }}
               className="space-y-6"
             >
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-4">
                 <div>
-                  <h2 className="text-lg font-semibold tracking-tight">Edit Profile</h2>
+                  <div className="workspace-kicker">Edit profile</div>
+                  <h2 className="mt-2 text-lg font-semibold tracking-tight">Update profile details</h2>
                   <p className="mt-1 text-sm text-muted-foreground">
                     Step {editStep} of 4: {stepTitles[editStep - 1]}
                   </p>
                 </div>
-                <div className="flex gap-1">
+                <div className="flex gap-2">
                   {[1, 2, 3, 4].map((value) => (
                     <div
                       key={value}
-                      className={`h-1.5 w-8 rounded-full transition-colors ${
-                        value <= editStep ? "bg-primary" : "bg-muted"
+                      className={`h-2 w-10 rounded-full transition-colors ${
+                        value <= editStep ? "bg-primary" : "bg-[hsl(var(--foreground)/0.1)]"
                       }`}
                     />
                   ))}
@@ -779,7 +801,7 @@ export default function Profiles() {
                       {ageGroups.map((age) => (
                         <label
                           key={age}
-                          className="flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm hover:bg-muted/50"
+                          className="workspace-panel-muted flex cursor-pointer items-center gap-2 px-3 py-2 text-sm"
                         >
                           <Checkbox
                             checked={editForm.watch("ageGroups").includes(age)}
@@ -819,7 +841,7 @@ export default function Profiles() {
                       {incomeBands.map((band) => (
                         <label
                           key={band.value}
-                          className="flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm hover:bg-muted/50"
+                          className="workspace-panel-muted flex cursor-pointer items-center gap-2 px-3 py-2 text-sm"
                         >
                           <Checkbox
                             checked={editForm.watch("incomeBands").includes(band.value)}
@@ -855,7 +877,7 @@ export default function Profiles() {
                       {["Mixed", "Walk-in focused", "Delivery focused"].map((model) => (
                         <label
                           key={model}
-                          className="flex cursor-pointer items-center gap-3 rounded-lg border p-4 hover:bg-muted/50"
+                          className="workspace-panel-muted flex cursor-pointer items-center gap-3 p-4"
                         >
                           <RadioGroupItem value={model} />
                           <div className="text-sm font-medium">{model}</div>
@@ -869,12 +891,12 @@ export default function Profiles() {
               {editStep === 4 ? (
                 <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2">
                   <div className="space-y-1">
-                    <div className="text-sm font-semibold">Review summary</div>
+                    <div className="workspace-kicker">Review summary</div>
                     <div className="text-xs text-muted-foreground">
                       Confirm the profile details before saving.
                     </div>
                   </div>
-                  <div className="rounded-xl border bg-card p-4 text-sm">
+                  <div className="workspace-panel-muted text-sm">
                     <div className="grid gap-2">
                       <div className="flex items-center justify-between">
                         <span className="text-muted-foreground">Name</span>
@@ -921,13 +943,13 @@ export default function Profiles() {
                       </div>
                     </div>
                   </div>
-                  <div className="rounded-xl border bg-muted/30 p-3 text-xs text-muted-foreground">
+                  <div className="workspace-panel-muted text-xs text-muted-foreground">
                     You can go back to edit any step before saving.
                   </div>
                 </div>
               ) : null}
 
-              <div className="flex items-center justify-between border-t pt-4">
+              <div className="flex items-center justify-between border-t border-[hsl(var(--card-border)/0.72)] pt-4">
                 <Button
                   type="button"
                   variant="ghost"
