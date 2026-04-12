@@ -8,10 +8,10 @@ SmartLocateSG is a location scoring web application for business site selection 
 
 The app addresses a common problem in site planning: demographic, accessibility, rental, and competition signals are often fragmented across sources. SmartLocateSG combines these inputs into one workflow so teams can shortlist locations faster and explain decisions clearly.
 
-# Youtube Demo
+# YouTube Demo
 
-[![SmartLocateSG Demo](attached_assets\SmartLocateSG_Thumbnail.jpg)](https://youtu.be/ER1H7f6JrCM)
-Youtube Video Demo Link: https://youtu.be/ER1H7f6JrCM
+[![SmartLocateSG Demo](attached_assets/SmartLocateSG_Thumbnail.jpg)](https://youtu.be/ER1H7f6JrCM)
+YouTube Video Demo Link: https://youtu.be/ER1H7f6JrCM
 
 ## Software Requirements Specification (SRS)
 
