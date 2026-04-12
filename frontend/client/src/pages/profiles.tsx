@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { Link } from "wouter";
 import { ChevronLeft, ChevronRight, Pencil, Plus, Save, Trash2 } from "lucide-react";
@@ -534,6 +534,328 @@ export default function Profiles() {
     }
   });
 
+  const editingIndex = editingProfileId
+    ? safeProfiles.findIndex((profile) => profile.id === editingProfileId)
+    : -1;
+  const editingRowEndIndex =
+    editingIndex === -1
+      ? -1
+      : Math.min(editingIndex + (editingIndex % 2 === 0 ? 1 : 0), safeProfiles.length - 1);
+
+  const renderEditProfileCard = (className = "") => (
+    <Card className={`workspace-surface rounded-[1.75rem] border p-6 shadow-none ${className}`.trim()}>
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+        }}
+        className="space-y-6"
+      >
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <div className="workspace-kicker">Edit profile</div>
+            <h2 className="mt-2 text-lg font-semibold tracking-tight">Update profile details</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Step {editStep} of 4: {stepTitles[editStep - 1]}
+            </p>
+          </div>
+          <div className="flex gap-2">
+            {[1, 2, 3, 4].map((value) => (
+              <div
+                key={value}
+                className={`h-2 w-10 rounded-full transition-colors ${
+                  value <= editStep ? "bg-primary" : "bg-[hsl(var(--foreground)/0.1)]"
+                }`}
+              />
+            ))}
+          </div>
+        </div>
+
+        {editStep === 1 ? (
+          <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2">
+            <div className="space-y-2">
+              <Label htmlFor="edit-name">Profile Name</Label>
+              <Input
+                id="edit-name"
+                placeholder="e.g. Downtown Cafe"
+                {...editForm.register("name", { required: true })}
+                data-testid="input-edit-profile-name"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Sector</Label>
+              <Select
+                onValueChange={(value) => editForm.setValue("sector", value)}
+                value={editForm.watch("sector")}
+              >
+                <SelectTrigger data-testid="select-edit-sector">
+                  <SelectValue placeholder="Select sector" />
+                </SelectTrigger>
+                <SelectContent>
+                  {sectors.map((sector) => (
+                    <SelectItem key={sector} value={sector}>
+                      {sector}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {editForm.watch("sector") === "Others" ? (
+                <>
+                  <Input
+                    type="text"
+                    placeholder="Type your sector"
+                    {...editForm.register("customSector")}
+                    data-testid="input-edit-custom-sector"
+                  />
+                  {editForm.formState.errors.customSector ? (
+                    <p className="text-xs text-destructive" data-testid="text-edit-custom-sector-error">
+                      {editForm.formState.errors.customSector.message}
+                    </p>
+                  ) : null}
+                </>
+              ) : null}
+            </div>
+            <div className="space-y-2">
+              <Label>Price Band (S$)</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="(Min $1)"
+                  {...editForm.register("priceMin")}
+                  data-testid="input-edit-price-min"
+                />
+                <span className="text-muted-foreground">-</span>
+                <Input
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="(empty)"
+                  {...editForm.register("priceMax")}
+                  data-testid="input-edit-price-max"
+                />
+              </div>
+              {editForm.formState.errors.priceMin ? (
+                <p className="text-xs text-destructive" data-testid="text-edit-price-min-error">
+                  {editForm.formState.errors.priceMin.message}
+                </p>
+              ) : null}
+              {editForm.formState.errors.priceMax ? (
+                <p className="text-xs text-destructive" data-testid="text-edit-price-max-error">
+                  {editForm.formState.errors.priceMax.message}
+                </p>
+              ) : null}
+              <p className="text-xs text-muted-foreground">
+                Enter numbers only. Saved format: lowest-highest.
+              </p>
+            </div>
+          </div>
+        ) : null}
+
+        {editStep === 2 ? (
+          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label>Target Age Groups</Label>
+                <label className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
+                  <Checkbox
+                    checked={editForm.watch("ageGroups").length === ageGroups.length}
+                    onCheckedChange={(checked) => {
+                      editForm.setValue("ageGroups", checked === true ? [...ageGroups] : []);
+                    }}
+                    data-testid="checkbox-edit-age-select-all"
+                  />
+                  Select All
+                </label>
+              </div>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                {ageGroups.map((age) => (
+                  <label
+                    key={age}
+                    className="workspace-panel-muted flex cursor-pointer items-center gap-2 px-3 py-2 text-sm"
+                  >
+                    <Checkbox
+                      checked={editForm.watch("ageGroups").includes(age)}
+                      onCheckedChange={(checked) => {
+                        const current = editForm.getValues("ageGroups");
+                        editForm.setValue(
+                          "ageGroups",
+                          checked ? [...current, age] : current.filter((entry) => entry !== age),
+                        );
+                      }}
+                      data-testid={`checkbox-edit-age-${age}`}
+                    />
+                    {age}
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label>Income Bands</Label>
+                <label className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
+                  <Checkbox
+                    checked={editForm.watch("incomeBands").length === incomeBands.length}
+                    onCheckedChange={(checked) => {
+                      editForm.setValue(
+                        "incomeBands",
+                        checked === true ? incomeBands.map((band) => band.value) : [],
+                      );
+                    }}
+                    data-testid="checkbox-edit-income-select-all"
+                  />
+                  Select All
+                </label>
+              </div>
+              <div className="space-y-2">
+                {incomeBands.map((band) => (
+                  <label
+                    key={band.value}
+                    className="workspace-panel-muted flex cursor-pointer items-center gap-2 px-3 py-2 text-sm"
+                  >
+                    <Checkbox
+                      checked={editForm.watch("incomeBands").includes(band.value)}
+                      onCheckedChange={(checked) => {
+                        const current = editForm.getValues("incomeBands");
+                        editForm.setValue(
+                          "incomeBands",
+                          checked
+                            ? [...current, band.value]
+                            : current.filter((entry) => entry !== band.value),
+                        );
+                      }}
+                      data-testid={`checkbox-edit-income-${band.value}`}
+                    />
+                    {band.label}
+                  </label>
+                ))}
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {editStep === 3 ? (
+          <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2">
+            <div className="space-y-3">
+              <Label>Operating Model</Label>
+              <RadioGroup
+                defaultValue={editForm.getValues("operatingModel")}
+                onValueChange={(value) => editForm.setValue("operatingModel", value)}
+                className="grid gap-3"
+                data-testid="radio-edit-operating-model"
+              >
+                {["Mixed", "Walk-in focused", "Delivery focused"].map((model) => (
+                  <label
+                    key={model}
+                    className="workspace-panel-muted flex cursor-pointer items-center gap-3 p-4"
+                  >
+                    <RadioGroupItem value={model} />
+                    <div className="text-sm font-medium">{model}</div>
+                  </label>
+                ))}
+              </RadioGroup>
+            </div>
+          </div>
+        ) : null}
+
+        {editStep === 4 ? (
+          <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2">
+            <div className="space-y-1">
+              <div className="workspace-kicker">Review summary</div>
+              <div className="text-xs text-muted-foreground">
+                Confirm the profile details before saving.
+              </div>
+            </div>
+            <div className="workspace-panel-muted text-sm">
+              <div className="grid gap-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Name</span>
+                  <span className="font-medium">{editForm.getValues("name") || "—"}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Sector</span>
+                  <span className="font-medium">{getResolvedSectorValue() || "—"}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Price band</span>
+                  <span className="font-medium">{getPriceBandPreview() ?? "—"}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Age groups</span>
+                  <span className="font-medium">
+                    {editForm.getValues("ageGroups").length > 0
+                      ? editForm.getValues("ageGroups").join(", ")
+                      : "—"}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Income bands</span>
+                  <span className="font-medium">
+                    {editForm.getValues("incomeBands").length > 0
+                      ? editForm.getValues("incomeBands")
+                          .map((band) => {
+                            const labels: Record<string, string> = {
+                              low: "Low",
+                              "lower-middle": "Lower-Middle",
+                              middle: "Middle",
+                              "upper-middle": "Upper-Middle",
+                              high: "High",
+                            };
+                            return labels[band] ?? band;
+                          })
+                          .join(", ")
+                      : "—"}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Reliance</span>
+                  <span className="font-medium">{editForm.getValues("operatingModel")}</span>
+                </div>
+              </div>
+            </div>
+            <div className="workspace-panel-muted text-xs text-muted-foreground">
+              You can go back to edit any step before saving.
+            </div>
+          </div>
+        ) : null}
+
+        <div className="flex items-center justify-between border-t border-[hsl(var(--card-border)/0.72)] pt-4">
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={backEdit}
+            disabled={editStep === 1}
+            data-testid="button-edit-wizard-back"
+          >
+            <ChevronLeft className="mr-2 h-4 w-4" />
+            Back
+          </Button>
+          <div className="flex items-center gap-2">
+            <Button type="button" variant="secondary" onClick={cancelEdit}>
+              Cancel
+            </Button>
+            {editStep < 4 ? (
+              <Button type="button" onClick={nextEdit} data-testid="button-edit-wizard-next">
+                Next
+                <ChevronRight className="ml-2 h-4 w-4" />
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                onClick={() => {
+                  void saveEdit();
+                }}
+                data-testid="button-edit-wizard-save"
+              >
+                <Save className="mr-2 h-4 w-4" />
+                Save Changes
+              </Button>
+            )}
+          </div>
+        </div>
+      </form>
+    </Card>
+  );
+
   return (
     <AppShell
       title="Business Profiles"
@@ -579,413 +901,108 @@ export default function Profiles() {
           </Card>
         ) : (
           <div className="grid gap-3 md:grid-cols-2">
-            {safeProfiles.map((p) => (
-              <Card
-                key={p.id}
-                className="workspace-surface workspace-hover-card rounded-[1.75rem] border p-5 shadow-none"
-                data-testid={`card-profile-${p.id}`}
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="text-base font-semibold" data-testid={`text-profile-title-${p.id}`}>{p.name}</div>
-                    <div className="mt-1 text-xs text-muted-foreground" data-testid={`text-profile-sector-${p.id}`}>{p.sector}</div>
-                  </div>
+            {safeProfiles.map((p, index) => (
+              <Fragment key={p.id}>
+                <Card
+                  className="workspace-surface workspace-hover-card rounded-[1.75rem] border p-5 shadow-none"
+                  data-testid={`card-profile-${p.id}`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-base font-semibold" data-testid={`text-profile-title-${p.id}`}>{p.name}</div>
+                      <div className="mt-1 text-xs text-muted-foreground" data-testid={`text-profile-sector-${p.id}`}>{p.sector}</div>
+                    </div>
 
-                  <div className="flex items-center gap-1 shrink-0">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => openEdit(p)}
-                      className="text-blue-600 hover:bg-blue-50 hover:text-blue-700"
-                      data-testid={`button-edit-profile-${p.id}`}
-                    >
-                      <Pencil className="h-4 w-4" aria-hidden="true" />
-                    </Button>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => openEdit(p)}
+                        className="text-blue-600 hover:bg-blue-50 hover:text-blue-700"
+                        data-testid={`button-edit-profile-${p.id}`}
+                      >
+                        <Pencil className="h-4 w-4" aria-hidden="true" />
+                      </Button>
 
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="text-red-600 hover:bg-red-50 hover:text-red-700"
-                          data-testid={`button-delete-profile-${p.id}`}
-                        >
-                          <Trash2 className="h-4 w-4" aria-hidden="true" />
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle data-testid="text-delete-title">Delete profile?</AlertDialogTitle>
-                          <AlertDialogDescription data-testid="text-delete-desc">
-                            This deletes the profile and linked candidate sites.
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel data-testid="button-cancel-delete">Cancel</AlertDialogCancel>
-                          <AlertDialogAction
-                            onClick={() => remove(p.id)}
-                            className="bg-red-600 hover:bg-red-700"
-                            data-testid="button-confirm-delete"
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="text-red-600 hover:bg-red-50 hover:text-red-700"
+                            data-testid={`button-delete-profile-${p.id}`}
                           >
-                            Delete
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
+                            <Trash2 className="h-4 w-4" aria-hidden="true" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle data-testid="text-delete-title">Delete profile?</AlertDialogTitle>
+                            <AlertDialogDescription data-testid="text-delete-desc">
+                              This deletes the profile and linked candidate sites.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel data-testid="button-cancel-delete">Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => remove(p.id)}
+                              className="bg-red-600 hover:bg-red-700"
+                              data-testid="button-confirm-delete"
+                            >
+                              Delete
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
                   </div>
-                </div>
 
-                <div className="mt-4 grid gap-2 text-sm">
-                  <div className="workspace-panel-muted flex items-center justify-between" data-testid={`row-price-${p.id}`}>
-                    <span className="text-muted-foreground">Price</span>
-                    <span className="font-medium" data-testid={`text-price-${p.id}`}>{p.priceBand}</span>
+                  <div className="mt-4 grid gap-2 text-sm">
+                    <div className="workspace-panel-muted flex items-center justify-between" data-testid={`row-price-${p.id}`}>
+                      <span className="text-muted-foreground">Price</span>
+                      <span className="font-medium" data-testid={`text-price-${p.id}`}>{p.priceBand}</span>
+                    </div>
+                    <div className="workspace-panel-muted flex items-center justify-between" data-testid={`row-ages-${p.id}`}>
+                      <span className="text-muted-foreground">Ages</span>
+                      <span className="font-medium" data-testid={`text-ages-${p.id}`}>{p.ageGroups.join(", ")}</span>
+                    </div>
+                    <div className="workspace-panel-muted flex items-center justify-between" data-testid={`row-income-${p.id}`}>
+                      <span className="text-muted-foreground">Income</span>
+                      <span className="font-medium" data-testid={`text-income-${p.id}`}>{p.incomeBands.join(", ")}</span>
+                    </div>
+                    <div className="workspace-panel-muted flex items-center justify-between" data-testid={`row-operating-${p.id}`}>
+                      <span className="text-muted-foreground">Reliance</span>
+                      <span className="font-medium" data-testid={`text-operating-${p.id}`}>{p.operatingModel}</span>
+                    </div>
+                    <div className="workspace-panel-muted flex items-center justify-between" data-testid={`row-updated-${p.id}`}>
+                      <span className="text-muted-foreground">Last updated</span>
+                      <span className="font-medium" data-testid={`text-updated-${p.id}`}>{p.updatedAt}</span>
+                    </div>
                   </div>
-                  <div className="workspace-panel-muted flex items-center justify-between" data-testid={`row-ages-${p.id}`}>
-                    <span className="text-muted-foreground">Ages</span>
-                    <span className="font-medium" data-testid={`text-ages-${p.id}`}>{p.ageGroups.join(", ")}</span>
-                  </div>
-                  <div className="workspace-panel-muted flex items-center justify-between" data-testid={`row-income-${p.id}`}>
-                    <span className="text-muted-foreground">Income</span>
-                    <span className="font-medium" data-testid={`text-income-${p.id}`}>{p.incomeBands.join(", ")}</span>
-                  </div>
-                  <div className="workspace-panel-muted flex items-center justify-between" data-testid={`row-operating-${p.id}`}>
-                    <span className="text-muted-foreground">Reliance</span>
-                    <span className="font-medium" data-testid={`text-operating-${p.id}`}>{p.operatingModel}</span>
-                  </div>
-                  <div className="workspace-panel-muted flex items-center justify-between" data-testid={`row-updated-${p.id}`}>
-                    <span className="text-muted-foreground">Last updated</span>
-                    <span className="font-medium" data-testid={`text-updated-${p.id}`}>{p.updatedAt}</span>
-                  </div>
-                </div>
 
-                <div className="mt-5 flex items-center justify-between gap-3">
-                  <Button
-                    variant={activeId === p.id ? "default" : "secondary"}
-                    className="w-full"
-                    onClick={() => setActive(p.id)}
-                    data-testid={`button-set-active-${p.id}`}
-                  >
-                    {activeId === p.id ? "Active" : "Set as Active"}
-                  </Button>
-                </div>
-              </Card>
+                  <div className="mt-5 flex items-center justify-between gap-3">
+                    <Button
+                      variant={activeId === p.id ? "default" : "secondary"}
+                      className="w-full"
+                      onClick={() => setActive(p.id)}
+                      data-testid={`button-set-active-${p.id}`}
+                    >
+                      {activeId === p.id ? "Active" : "Set as Active"}
+                    </Button>
+                  </div>
+                </Card>
+
+                {editingProfileId === p.id ? (
+                  renderEditProfileCard("md:hidden")
+                ) : null}
+
+                {editingProfileId !== null && index === editingRowEndIndex
+                  ? renderEditProfileCard("hidden md:block md:col-span-2")
+                  : null}
+              </Fragment>
             ))}
           </div>
         )}
-
-        {editingProfileId ? (
-          <Card className="workspace-surface rounded-[1.75rem] border p-6 shadow-none">
-            <form
-              onSubmit={(event) => {
-                event.preventDefault();
-              }}
-              className="space-y-6"
-            >
-              <div className="flex items-center justify-between gap-4">
-                <div>
-                  <div className="workspace-kicker">Edit profile</div>
-                  <h2 className="mt-2 text-lg font-semibold tracking-tight">Update profile details</h2>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    Step {editStep} of 4: {stepTitles[editStep - 1]}
-                  </p>
-                </div>
-                <div className="flex gap-2">
-                  {[1, 2, 3, 4].map((value) => (
-                    <div
-                      key={value}
-                      className={`h-2 w-10 rounded-full transition-colors ${
-                        value <= editStep ? "bg-primary" : "bg-[hsl(var(--foreground)/0.1)]"
-                      }`}
-                    />
-                  ))}
-                </div>
-              </div>
-
-              {editStep === 1 ? (
-                <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="edit-name">Profile Name</Label>
-                    <Input
-                      id="edit-name"
-                      placeholder="e.g. Downtown Cafe"
-                      {...editForm.register("name", { required: true })}
-                      data-testid="input-edit-profile-name"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Sector</Label>
-                    <Select
-                      onValueChange={(value) => editForm.setValue("sector", value)}
-                      value={editForm.watch("sector")}
-                    >
-                      <SelectTrigger data-testid="select-edit-sector">
-                        <SelectValue placeholder="Select sector" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {sectors.map((sector) => (
-                          <SelectItem key={sector} value={sector}>
-                            {sector}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    {editForm.watch("sector") === "Others" ? (
-                      <>
-                        <Input
-                          type="text"
-                          placeholder="Type your sector"
-                          {...editForm.register("customSector")}
-                          data-testid="input-edit-custom-sector"
-                        />
-                        {editForm.formState.errors.customSector ? (
-                          <p className="text-xs text-destructive" data-testid="text-edit-custom-sector-error">
-                            {editForm.formState.errors.customSector.message}
-                          </p>
-                        ) : null}
-                      </>
-                    ) : null}
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Price Band (S$)</Label>
-                    <div className="flex items-center gap-2">
-                      <Input
-                        type="text"
-                        inputMode="numeric"
-                        placeholder="(Min $1)"
-                        {...editForm.register("priceMin")}
-                        data-testid="input-edit-price-min"
-                      />
-                      <span className="text-muted-foreground">-</span>
-                      <Input
-                        type="text"
-                        inputMode="numeric"
-                        placeholder="(empty)"
-                        {...editForm.register("priceMax")}
-                        data-testid="input-edit-price-max"
-                      />
-                    </div>
-                    {editForm.formState.errors.priceMin ? (
-                      <p className="text-xs text-destructive" data-testid="text-edit-price-min-error">
-                        {editForm.formState.errors.priceMin.message}
-                      </p>
-                    ) : null}
-                    {editForm.formState.errors.priceMax ? (
-                      <p className="text-xs text-destructive" data-testid="text-edit-price-max-error">
-                        {editForm.formState.errors.priceMax.message}
-                      </p>
-                    ) : null}
-                    <p className="text-xs text-muted-foreground">
-                      Enter numbers only. Saved format: lowest-highest.
-                    </p>
-                  </div>
-                </div>
-              ) : null}
-
-              {editStep === 2 ? (
-                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <Label>Target Age Groups</Label>
-                      <label className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
-                        <Checkbox
-                          checked={editForm.watch("ageGroups").length === ageGroups.length}
-                          onCheckedChange={(checked) => {
-                            editForm.setValue("ageGroups", checked === true ? [...ageGroups] : []);
-                          }}
-                          data-testid="checkbox-edit-age-select-all"
-                        />
-                        Select All
-                      </label>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                      {ageGroups.map((age) => (
-                        <label
-                          key={age}
-                          className="workspace-panel-muted flex cursor-pointer items-center gap-2 px-3 py-2 text-sm"
-                        >
-                          <Checkbox
-                            checked={editForm.watch("ageGroups").includes(age)}
-                            onCheckedChange={(checked) => {
-                              const current = editForm.getValues("ageGroups");
-                              editForm.setValue(
-                                "ageGroups",
-                                checked ? [...current, age] : current.filter((entry) => entry !== age),
-                              );
-                            }}
-                            data-testid={`checkbox-edit-age-${age}`}
-                          />
-                          {age}
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <Label>Income Bands</Label>
-                      <label className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
-                        <Checkbox
-                          checked={editForm.watch("incomeBands").length === incomeBands.length}
-                          onCheckedChange={(checked) => {
-                            editForm.setValue(
-                              "incomeBands",
-                              checked === true ? incomeBands.map((band) => band.value) : [],
-                            );
-                          }}
-                          data-testid="checkbox-edit-income-select-all"
-                        />
-                        Select All
-                      </label>
-                    </div>
-                    <div className="space-y-2">
-                      {incomeBands.map((band) => (
-                        <label
-                          key={band.value}
-                          className="workspace-panel-muted flex cursor-pointer items-center gap-2 px-3 py-2 text-sm"
-                        >
-                          <Checkbox
-                            checked={editForm.watch("incomeBands").includes(band.value)}
-                            onCheckedChange={(checked) => {
-                              const current = editForm.getValues("incomeBands");
-                              editForm.setValue(
-                                "incomeBands",
-                                checked
-                                  ? [...current, band.value]
-                                  : current.filter((entry) => entry !== band.value),
-                              );
-                            }}
-                            data-testid={`checkbox-edit-income-${band.value}`}
-                          />
-                          {band.label}
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              ) : null}
-
-              {editStep === 3 ? (
-                <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2">
-                  <div className="space-y-3">
-                    <Label>Operating Model</Label>
-                    <RadioGroup
-                      defaultValue={editForm.getValues("operatingModel")}
-                      onValueChange={(value) => editForm.setValue("operatingModel", value)}
-                      className="grid gap-3"
-                      data-testid="radio-edit-operating-model"
-                    >
-                      {["Mixed", "Walk-in focused", "Delivery focused"].map((model) => (
-                        <label
-                          key={model}
-                          className="workspace-panel-muted flex cursor-pointer items-center gap-3 p-4"
-                        >
-                          <RadioGroupItem value={model} />
-                          <div className="text-sm font-medium">{model}</div>
-                        </label>
-                      ))}
-                    </RadioGroup>
-                  </div>
-                </div>
-              ) : null}
-
-              {editStep === 4 ? (
-                <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2">
-                  <div className="space-y-1">
-                    <div className="workspace-kicker">Review summary</div>
-                    <div className="text-xs text-muted-foreground">
-                      Confirm the profile details before saving.
-                    </div>
-                  </div>
-                  <div className="workspace-panel-muted text-sm">
-                    <div className="grid gap-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-muted-foreground">Name</span>
-                        <span className="font-medium">{editForm.getValues("name") || "—"}</span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-muted-foreground">Sector</span>
-                        <span className="font-medium">{getResolvedSectorValue() || "—"}</span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-muted-foreground">Price band</span>
-                        <span className="font-medium">{getPriceBandPreview() ?? "—"}</span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-muted-foreground">Age groups</span>
-                        <span className="font-medium">
-                          {editForm.getValues("ageGroups").length > 0
-                            ? editForm.getValues("ageGroups").join(", ")
-                            : "—"}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-muted-foreground">Income bands</span>
-                        <span className="font-medium">
-                          {editForm.getValues("incomeBands").length > 0
-                            ? editForm.getValues("incomeBands")
-                                .map((band) => {
-                                  const labels: Record<string, string> = {
-                                    low: "Low",
-                                    "lower-middle": "Lower-Middle",
-                                    middle: "Middle",
-                                    "upper-middle": "Upper-Middle",
-                                    high: "High",
-                                  };
-                                  return labels[band] ?? band;
-                                })
-                                .join(", ")
-                            : "—"}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-muted-foreground">Reliance</span>
-                        <span className="font-medium">{editForm.getValues("operatingModel")}</span>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="workspace-panel-muted text-xs text-muted-foreground">
-                    You can go back to edit any step before saving.
-                  </div>
-                </div>
-              ) : null}
-
-              <div className="flex items-center justify-between border-t border-[hsl(var(--card-border)/0.72)] pt-4">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={backEdit}
-                  disabled={editStep === 1}
-                  data-testid="button-edit-wizard-back"
-                >
-                  <ChevronLeft className="mr-2 h-4 w-4" />
-                  Back
-                </Button>
-                <div className="flex items-center gap-2">
-                  <Button type="button" variant="secondary" onClick={cancelEdit}>
-                    Cancel
-                  </Button>
-                  {editStep < 4 ? (
-                    <Button type="button" onClick={nextEdit} data-testid="button-edit-wizard-next">
-                      Next
-                      <ChevronRight className="ml-2 h-4 w-4" />
-                    </Button>
-                  ) : (
-                    <Button
-                      type="button"
-                      onClick={() => {
-                        void saveEdit();
-                      }}
-                      data-testid="button-edit-wizard-save"
-                    >
-                      <Save className="mr-2 h-4 w-4" />
-                      Save Changes
-                    </Button>
-                  )}
-                </div>
-              </div>
-            </form>
-          </Card>
-        ) : null}
       </div>
     </AppShell>
   );
