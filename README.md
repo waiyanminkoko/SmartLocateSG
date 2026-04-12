@@ -10,9 +10,9 @@ The app addresses a common problem in site planning: demographic, accessibility,
 
 # YouTube Demo
 
-[![SmartLocateSG Demo](attached_assets/SmartLocateSG_Thumbnail.jpg)](https://youtu.be/ER1H7f6JrCM)
+[![SmartLocateSG Demo](attached_assets/SmartLocateSG_Thumbnail.jpg)](https://youtu.be/vhsgS5AMI34)
 
-SmartLocateSG WebApp Video Demo Link: https://youtu.be/ER1H7f6JrCM
+SmartLocateSG WebApp Video Demo Link: https://youtu.be/vhsgS5AMI34
 
 ## Software Requirements Specification (SRS)
 
