@@ -55,7 +55,10 @@ export default function Compare() {
     "compare:selected-by-filter",
     {},
   );
+  const [incomingSelectionProcessed, setIncomingSelectionProcessed] = useState(false);
   const hasAppliedDefaultFilter = useRef(false);
+  const hasAppliedIncomingSelection = useRef(false);
+  const skipNextSelectionSync = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -184,6 +187,83 @@ export default function Compare() {
     hasAppliedDefaultFilter.current = true;
   }, [activeProfile?.id, authLoading]);
 
+  useEffect(() => {
+    if (hasAppliedIncomingSelection.current) {
+      return;
+    }
+
+    if (sites.length === 0) {
+      return;
+    }
+
+    if (typeof window === "undefined") {
+      hasAppliedIncomingSelection.current = true;
+      setIncomingSelectionProcessed(true);
+      return;
+    }
+
+    const raw = window.localStorage.getItem("compare:selected");
+    if (!raw) {
+      hasAppliedIncomingSelection.current = true;
+      setIncomingSelectionProcessed(true);
+      return;
+    }
+
+    try {
+      const parsed = JSON.parse(raw) as string[];
+      if (!Array.isArray(parsed) || parsed.length === 0) {
+        hasAppliedIncomingSelection.current = true;
+        setIncomingSelectionProcessed(true);
+        return;
+      }
+
+      const incomingIds = parsed
+        .filter((id): id is string => typeof id === "string")
+        .slice(0, 3);
+
+      if (incomingIds.length === 0) {
+        hasAppliedIncomingSelection.current = true;
+        setIncomingSelectionProcessed(true);
+        return;
+      }
+
+      const idToSite = new Map(sites.map((site) => [site.id, site]));
+      const matchedIds = incomingIds.filter((id) => idToSite.has(id));
+
+      if (matchedIds.length === 0) {
+        hasAppliedIncomingSelection.current = true;
+        setIncomingSelectionProcessed(true);
+        return;
+      }
+
+      const profileIds = Array.from(
+        new Set(
+          matchedIds
+            .map((id) => idToSite.get(id)?.profileId)
+            .filter((profileId): profileId is string => Boolean(profileId)),
+        ),
+      );
+
+      const targetFilter = profileIds.length === 1 ? profileIds[0] : "all";
+
+      // Avoid the immediate fallback sync cycle from replacing incoming selection with default first-2.
+      skipNextSelectionSync.current = true;
+      setProfileFilter(targetFilter);
+      setSelected(matchedIds);
+      setSelectionByFilter((prev) => ({
+        ...prev,
+        [targetFilter]: matchedIds,
+      }));
+
+      hasAppliedDefaultFilter.current = true;
+      hasAppliedIncomingSelection.current = true;
+      setIncomingSelectionProcessed(true);
+    } catch {
+      hasAppliedIncomingSelection.current = true;
+      setIncomingSelectionProcessed(true);
+    }
+  }, [setSelectionByFilter, sites]);
+
   const filteredSites = useMemo(() => {
     if (profileFilter === "all") {
       return sites;
@@ -197,6 +277,15 @@ export default function Compare() {
   const [selected, setSelected] = useState<string[]>([]);
 
   useEffect(() => {
+    if (!incomingSelectionProcessed) {
+      return;
+    }
+
+    if (skipNextSelectionSync.current) {
+      skipNextSelectionSync.current = false;
+      return;
+    }
+
     const allowedIds = new Set(availableSites.map((site) => site.id));
     const defaultIds = availableSites.slice(0, 2).map((site) => site.id);
     const remembered = (selectionByFilter[profileFilter] ?? []).filter((id) => allowedIds.has(id));
@@ -216,11 +305,15 @@ export default function Compare() {
       }
       return { ...prev, [profileFilter]: next };
     });
-  }, [availableSites, profileFilter, selectionByFilter, setSelectionByFilter]);
+  }, [availableSites, incomingSelectionProcessed, profileFilter, selectionByFilter, setSelectionByFilter]);
 
   useEffect(() => {
+    if (!incomingSelectionProcessed) {
+      return;
+    }
+
     localStorage.setItem("compare:selected", JSON.stringify(selected));
-  }, [selected]);
+  }, [incomingSelectionProcessed, selected]);
 
   const selectedSites = useMemo(
     () => availableSites.filter((site) => selected.includes(site.id)).slice(0, 3),
