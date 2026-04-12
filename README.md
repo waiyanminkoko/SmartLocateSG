@@ -1,69 +1,44 @@
-# SmartLocate SG
+# SmartLocateSG
 
 <p align="center">
 	<img src="frontend/client/public/SmartLocateSG_Logo.png" alt="SmartLocate SG Logo" width="100" />
 </p>
 
-SmartLocate SG is a location scoring web application for business site selection in Singapore. It helps users move from gut-feel decisions to evidence-based comparisons by combining map exploration, profile-based scoring, and side-by-side candidate analysis.
+SmartLocateSG is a location scoring web application for business site selection in Singapore. It helps users move from gut-feel decisions to evidence-based comparisons by combining map exploration, profile-based scoring, and side-by-side candidate analysis.
 
-The app addresses a common problem in site planning: data for demographics, accessibility, rental pressure, and competition is usually fragmented. SmartLocate SG brings these signals together in one workflow so teams can shortlist locations faster and explain why one site is stronger than another.
+The app addresses a common problem in site planning: demographic, accessibility, rental, and competition signals are often fragmented across sources. SmartLocateSG combines these inputs into one workflow so teams can shortlist locations faster and explain decisions clearly.
 
-**Target Audience**
-- SMEs planning a new outlet and validating neighborhood demand.
-- Expansion teams comparing multiple sites before lease and rollout decisions.
-- Commercial agents preparing clearer, data-backed recommendations for clients.
+## Software Requirements Specification (SRS)
 
-**How SmartLocate SG Helps**
-- Define a business profile (sector, price band, target age and income groups, operating model).
-- Explore the map, drop pins, and get a composite score with dimension-level breakdowns.
-- Tune scenario weights (including presets) to test assumptions and ranking sensitivity.
-- Save candidate sites, add notes, and compare up to three options side by side.
+The formal requirements baseline is maintained in:
 
-**What’s Working**
-- Landing page with product positioning, workflows, and scoring pillars.
-- Login/register UI and protected routes for app pages.
-- Dashboard with quick actions and recent activity summaries.
-- Business profile list and multi-step profile wizard with create, edit, activate, and delete flows.
-- Interactive Google Maps page with click-to-score, pan/zoom, reset-to-pin, and selected-site context.
-- Postal/address search with Google Places autocomplete suggestions and manual search fallback.
-- Server-backed map scoring endpoint with score breakdown response.
-- Planning-area choropleth overlays (Composite, Demographics, Accessibility, Vacancy) with legend and visibility controls.
-- Overview mode and focus mode, including radius-filtered MRT stations, MRT exits, and bus stops.
-- Portfolio page with API-backed fetch for profiles/sites and local cached persistence.
-- Compare page with side-by-side metrics, chart visualizations, explanation insights, and client-side PDF export.
-- Explain-score and chatbot endpoints with graceful fallback responses when AI service is unavailable.
-- Admin screen for source status visibility plus demo/local data reset actions.
+- [diagrams/SoftwareRequirementsSpecification_SRS.md](diagrams/SoftwareRequirementsSpecification_SRS.md)
 
-**Current Limitations**
-- Some client flows still rely on localStorage and demo fallbacks, especially compare selections and resilience paths when APIs fail.
-- Postal search and place autocomplete require valid Google API configuration.
-- AI explanations/chatbot quality depends on Gemini configuration; fallback logic is used when Gemini is unavailable.
-- Overlay aggregation currently focuses on planning areas; district and region aggregation are not implemented.
-- Data source freshness indicators and manual refresh are still prototype-oriented for demonstration.
+This SRS is the source of truth for requirement IDs, priorities (MoSCoW), acceptance criteria, constraints, and traceability.
 
-**Current Delivery Status**
-- Completed: End-to-end core flow for profile setup, map scoring, candidate saving, and comparison.
-- Completed: API routes for profiles, sites, map overlays, map layers, and site scoring.
-- Completed: Hybrid persistence model with API-first fetch plus local fallback and cache behavior.
-- Completed: Explainability surfaces across map, portfolio, and compare with feedback capture.
-- Completed: Compare PDF export and admin reset tooling for demo operations.
-- In progress: Full removal of remaining localStorage-dependent fallback paths.
-- Pending / stretch: District and region overlay aggregation beyond planning-area coverage.
-- Pending / stretch: Production-grade data refresh and hardening of AI-assisted explanation flows.
+## Key Capabilities (Summary)
 
-**Routes**
-- / landing
-- /login login
-- /register register
-- /dashboard overview
-- /profiles profiles list
-- /profiles/new profile wizard
-- /map map + scoring
-- /portfolio candidate sites
-- /compare comparison
-- /admin data status
+- Business profile creation and management.
+- Interactive map exploration with overlays and transport layers.
+- Site scoring with composite and dimension-level breakdown.
+- Candidate site portfolio management and side-by-side comparison.
+- AI-assisted explanation/chatbot with deterministic fallback behavior.
 
-**Tech Stack**
+## Routes (Quick Reference)
+
+- `/` landing
+- `/login` login
+- `/register` register
+- `/dashboard` overview
+- `/profiles` profiles list
+- `/profiles/new` profile wizard
+- `/map` map + scoring
+- `/portfolio` candidate sites
+- `/compare` comparison
+- `/admin` data status
+
+## Tech Stack (Summary)
+
 - Frontend: React 19, TypeScript, Vite, Wouter, Tailwind v4, shadcn/ui.
 - Map and geocoding: Google Maps JavaScript API + Places services.
 - Backend: Node/Express-style server with REST endpoints for profiles, sites, overlays, layers, scoring, and explanations.
@@ -238,42 +213,3 @@ curl -X POST http://127.0.0.1:5000/api/chatbot \
 - If you want to switch models:
 	- Update `GEMINI_CHATBOT_MODEL` (for example: `gemini-2.0-flash`).
 	- Restart the dev server.
-
-**Planned Work (Next Steps)**
-- Implement real backend API (profiles, scoring, sites).
-- Connect the current UI flows to the persisted backend APIs instead of localStorage.
-- Add district / region overlay aggregation if required for the final demo.
-- Add real scoring pipeline from OneMap, SingStat, LTA, URA datasets.
-- Replace prototype AI explanations with rule-based or LLM-backed logic.
-- Add authentication, user accounts, and portfolio ownership.
-
-**Update Log**
-April 10, 2026
-- Moved the profile card edit action so it sits beside the delete action, fixing the floating middle icon layout on the Profiles page.
-- Simplified the Map page structure by removing the extra page intro, moving Active Profile into the left controls panel, and flattening the map header so it behaves more like a workspace card than a second page header.
-- Hid visible scrollbar chrome on the sticky Map side panels while preserving scrolling behavior.
-- Moved Portfolio's compare action into the top-right page action area and tightened the top control row layout.
-- Simplified Compare's page intro by moving scope and prepared-on metadata into the first content card.
-- Simplified Admin's page title and top stat cards so they align more closely with the dashboard-style label/value pattern.
-
-April 9, 2026
-- Standardized the map page top layout so the header, toolbar, and status strip align more closely with the rest of the app.
-- Strengthened hover states across shared buttons and dropdowns for clearer clickability throughout the UI.
-- Restored Google Places autocomplete suggestions in the map search input while keeping manual search intact.
-- Added a `Reset to pin` map action that recenters and frames the currently selected site using the active radius.
-- Simplified the overlay visibility toggle by removing the extra visible/hidden badge and keeping the control text-only.
-
-March 25, 2026
-- Added overview vs focus behavior on the map so nationwide planning-area overlays show before a site is selected.
-- Added choropleth visibility toggle, zoom-gated MRT exits, clearer overlay legend ranges, and stronger layer controls.
-- Improved the right-side map panel with selected-site context, clearer empty states, and better score hierarchy.
-- Added client-side comparison PDF export.
-- Added explanation feedback capture for map, portfolio, and compare insights.
-
-February 20, 2026
-- Replaced Leaflet/OneMap tiles with Google Maps (base map, click-to-drop pin, geocoding search, Places autocomplete).
-- Added localStorage persistence for profiles and sites with a shared hook.
-- Map scoring is now generated dynamically from seeded location scores and scenario weights.
-- Portfolio and compare now read saved sites; portfolio can open a saved pin on the map.
-- Admin now includes a reset demo data action.
-- Added `.env` handling and documentation for `VITE_GOOGLE_MAPS_API_KEY`.
